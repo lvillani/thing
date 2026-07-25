@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec" // NEW
 	"time"
 )
 
@@ -24,19 +25,64 @@ You are an expert assistant operating inside an agent harness.
 type messages []message
 
 type message struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role       string     `json:"role"`
+	Content    string     `json:"content"`
+	ToolCalls  []toolCall `json:"tool_calls,omitempty"`
+	ToolCallID string     `json:"tool_call_id,omitempty"`
+}
+
+type toolCall struct {
+	ID       string       `json:"id"`
+	Type     string       `json:"type"`
+	Function functionCall `json:"function"`
+}
+
+type functionCall struct {
+	Name      string `json:"name"`
+	Arguments string `json:"arguments"`
+}
+
+type tool struct {
+	Type     string       `json:"type"`
+	Function toolFunction `json:"function"`
+}
+
+type toolFunction struct {
+	Name        string      `json:"name"`
+	Description string      `json:"description"`
+	Parameters  interface{} `json:"parameters"`
 }
 
 type chatCompletion struct {
 	Model    string   `json:"model"`
 	Messages messages `json:"messages"`
+	Tools    []tool   `json:"tools,omitempty"`
 }
 
 type chatCompletionResponse struct {
 	Choices []struct {
 		Message message `json:"message"`
 	} `json:"choices"`
+}
+
+var tools = []tool{
+	{
+		Type: "function",
+		Function: toolFunction{
+			Name:        "bash",
+			Description: "Execute a bash command. The command is passed via stdin to bash.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"command": map[string]interface{}{
+						"type":        "string",
+						"description": "The bash command to execute",
+					},
+				},
+				"required": []string{"command"},
+			},
+		},
+	},
 }
 
 func main() {
@@ -73,62 +119,89 @@ func main() {
 			Content: input,
 		})
 
-		// Send request
-		reqBody, err := json.Marshal(chatCompletion{
-			Model:    model,
-			Messages: messages,
-		})
-		if err != nil {
-			fmt.Println("Error marshaling request body:", err)
-			continue
-		}
-		req, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(reqBody))
-		if err != nil {
-			fmt.Println("Error creating request:", err)
-			continue
-		}
-		req.Header.Add("Authorization", "Bearer "+token)
+		for {
+			// Send request
+			reqBody, err := json.Marshal(chatCompletion{
+				Model:    model,
+				Messages: messages,
+				Tools:    tools, // NEW
+			})
+			if err != nil {
+				fmt.Println("Error marshaling request body:", err)
+				break
+			}
+			req, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(reqBody))
+			if err != nil {
+				fmt.Println("Error creating request:", err)
+				break
+			}
+			req.Header.Add("Authorization", "Bearer "+token)
 
-		// Read response
-		resp, err := httpClient.Do(req)
-		if err != nil {
-			fmt.Println("Error sending request:", err)
-			continue
-		}
-		if resp.StatusCode != http.StatusOK {
-			fmt.Println("Error: received non-OK HTTP status:", resp.Status)
+			// Read response
+			resp, err := httpClient.Do(req)
+			if err != nil {
+				fmt.Println("Error sending request:", err)
+				break
+			}
+			if resp.StatusCode != http.StatusOK {
+				fmt.Println("Error: received non-OK HTTP status:", resp.Status)
+				resp.Body.Close()
+				break
+			}
+			respBody, err := io.ReadAll(resp.Body)
+			if err != nil {
+				fmt.Println("Error reading response body:", err)
+				resp.Body.Close()
+				break
+			}
+			var chat chatCompletionResponse
+			err = json.Unmarshal(respBody, &chat)
+			if err != nil {
+				fmt.Println("Error unmarshaling response body:", err)
+				resp.Body.Close()
+				break
+			}
 			resp.Body.Close()
-			continue
-		}
-		respBody, err := io.ReadAll(resp.Body)
-		if err != nil {
-			fmt.Println("Error reading response body:", err)
-			resp.Body.Close()
-			continue
-		}
-		var chat chatCompletionResponse
-		err = json.Unmarshal(respBody, &chat)
-		if err != nil {
-			fmt.Println("Error unmarshaling response body:", err)
-			resp.Body.Close()
-			continue
-		}
-		resp.Body.Close()
 
-		// Print response
-		if len(chat.Choices) > 0 {
-			if len(chat.Choices) != 1 {
-				fmt.Println("Warning: received multiple choices, using the first one.")
+			if len(chat.Choices) == 0 {
+				fmt.Println("No response from the model.")
+				break
 			}
 
-			messages = append(messages, message{
-				Role:    "assistant",
-				Content: chat.Choices[0].Message.Content,
-			})
+			msg := chat.Choices[0].Message
+			messages = append(messages, msg)
 
-			fmt.Println(chat.Choices[0].Message.Content)
-		} else {
-			fmt.Println("No response from the model.")
+			// NEW: handle tool calls
+			if len(msg.ToolCalls) > 0 {
+				for _, tc := range msg.ToolCalls {
+					if tc.Function.Name == "bash" {
+						var args struct {
+							Command string `json:"command"`
+						}
+						json.Unmarshal([]byte(tc.Function.Arguments), &args)
+						fmt.Printf("[bash] %s\n", args.Command)
+						cmd := exec.Command("bash")
+						cmd.Stdin = bytes.NewBufferString(args.Command)
+						out, err := cmd.CombinedOutput()
+						result := string(out)
+						if err != nil {
+							result += "\n" + err.Error()
+						}
+						fmt.Print(result)
+						messages = append(messages, message{
+							Role:       "tool",
+							ToolCallID: tc.ID,
+							Content:    result,
+						})
+					}
+				}
+				continue // loop back to send tool results to the model
+			}
+
+			if msg.Content != "" {
+				fmt.Println(msg.Content)
+			}
+			break
 		}
 	}
 }
