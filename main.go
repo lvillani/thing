@@ -60,7 +60,6 @@ func main() {
 			// Execute each tool call and feed results back.
 			for _, tc := range msg.ToolCalls {
 				result := executeTool(tc)
-				fmt.Print(result)
 				messages = append(messages, Message{
 					Role:       "tool",
 					ToolCallID: tc.ID,
