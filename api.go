@@ -59,6 +59,35 @@ type ChatCompletionResponse struct {
 	Choices []struct {
 		Message Message `json:"message"`
 	} `json:"choices"`
+	Usage *UsageInfo `json:"usage,omitempty"`
+}
+
+type UsageInfo struct {
+	PromptTokens          int                  `json:"prompt_tokens"`
+	CompletionTokens      int                  `json:"completion_tokens"`
+	TotalTokens           int                  `json:"total_tokens"`
+	PromptTokensDetails   *PromptTokensDetails `json:"prompt_tokens_details,omitempty"`
+}
+
+type PromptTokensDetails struct {
+	CachedTokens int `json:"cached_tokens"`
+}
+
+// Stats holds cumulative usage and cache metrics.
+var stats struct {
+	TotalPromptTokens     int
+	TotalCompletionTokens int
+	TotalCachedTokens     int
+}
+
+// cacheSummary returns a string describing cached vs total prompt tokens.
+func cacheSummary() string {
+	if stats.TotalPromptTokens == 0 {
+		return "—"
+	}
+	pct := float64(stats.TotalCachedTokens) / float64(stats.TotalPromptTokens) * 100
+	return fmt.Sprintf("%.1f%% (%d/%d cached)",
+		pct, stats.TotalCachedTokens, stats.TotalPromptTokens)
 }
 
 // callAPI sends the conversation to the model and returns the assistant's reply.
@@ -96,6 +125,15 @@ func callAPI(ctx context.Context, client *http.Client, token string, messages []
 	}
 	if len(result.Choices) == 0 {
 		return nil, fmt.Errorf("API returned no choices")
+	}
+
+	// Accumulate usage stats from the standardized response body.
+	if result.Usage != nil {
+		stats.TotalPromptTokens += result.Usage.PromptTokens
+		stats.TotalCompletionTokens += result.Usage.CompletionTokens
+		if d := result.Usage.PromptTokensDetails; d != nil {
+			stats.TotalCachedTokens += d.CachedTokens
+		}
 	}
 
 	return &result.Choices[0].Message, nil

@@ -26,6 +26,10 @@ func main() {
 	messages := []Message{{Role: "system", Content: systemPrompt}}
 
 	for {
+		fmt.Printf("─ ctx: %d in / %d out  cache: %s\n",
+			stats.TotalPromptTokens,
+			stats.TotalCompletionTokens,
+			cacheSummary())
 		fmt.Printf("[%d] > ", len(messages))
 		input, err := reader.ReadString('\n')
 		if err != nil {
