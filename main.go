@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"os"
 	"time"
+
+	"charm.land/glamour/v2"
 )
 
 func main() {
@@ -45,7 +47,12 @@ func main() {
 			if len(msg.ToolCalls) == 0 {
 				// Model produced a final answer.
 				if msg.Content != "" {
-					fmt.Println(msg.Content)
+					out, err := glamour.Render(msg.Content, "dark")
+					if err != nil {
+						fmt.Println(msg.Content)
+					} else {
+						fmt.Print(out)
+					}
 				}
 				break
 			}
