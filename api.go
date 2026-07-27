@@ -12,7 +12,7 @@ import (
 )
 
 const endpoint = "https://openrouter.ai/api/v1/chat/completions"
-const model = "xiaomi/mimo-v2.5-pro"
+const model = "deepseek/deepseek-v4-flash"
 
 const systemPrompt = `
 You are an expert assistant operating inside an agent harness.
