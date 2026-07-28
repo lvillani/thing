@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"charm.land/glamour/v2"
+
+	"thing/internal/model"
 )
 
 func main() {
@@ -23,7 +25,7 @@ func main() {
 	ctx := context.Background()
 	client := &http.Client{Timeout: 10 * time.Minute}
 	reader := bufio.NewReader(os.Stdin)
-	messages := []Message{{Role: "system", Content: systemPrompt}}
+	messages := []model.Message{{Role: model.MessageRoleDeveloper, Content: systemPrompt}}
 
 	for {
 		fmt.Printf("─ ctx: %d in / %d out  cache: %s\n",
@@ -37,7 +39,7 @@ func main() {
 			return
 		}
 
-		messages = append(messages, Message{Role: "user", Content: input})
+		messages = append(messages, model.Message{Role: model.MessageRoleUser, Content: input})
 
 		// Keep talking to the model as long as it wants to use tools.
 		for {
@@ -64,8 +66,8 @@ func main() {
 			// Execute each tool call and feed results back.
 			for _, tc := range msg.ToolCalls {
 				result := executeTool(tc)
-				messages = append(messages, Message{
-					Role:       "tool",
+				messages = append(messages, model.Message{
+					Role:       model.MessageRoleTool,
 					ToolCallID: tc.ID,
 					Content:    result,
 				})

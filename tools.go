@@ -7,15 +7,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+
+	"thing/internal/model"
 )
 
 // toolDefinitions returns the tool specs sent to the API.
 // To add a new tool: add it here and add a case in executeTool.
-func toolDefinitions() []Tool {
-	return []Tool{
+func toolDefinitions() []model.Tool {
+	return []model.Tool{
 		{
-			Type: "function",
-			Function: ToolFunction{
+			Type: model.ToolTypeFunction,
+			Function: model.ToolFunctionDefinition{
 				Name:        "bash",
 				Description: "Execute a bash command. The command is passed via stdin to bash.",
 				Parameters: map[string]interface{}{
@@ -34,7 +36,7 @@ func toolDefinitions() []Tool {
 }
 
 // executeTool dispatches a tool call and returns the result string.
-func executeTool(tc ToolCall) string {
+func executeTool(tc model.ToolCall) string {
 	switch tc.Function.Name {
 	case "bash":
 		return runBash(tc)
@@ -45,7 +47,7 @@ func executeTool(tc ToolCall) string {
 
 // --- tool implementations ---
 
-func runBash(tc ToolCall) string {
+func runBash(tc model.ToolCall) string {
 	var args struct {
 		Command string `json:"command"`
 	}
