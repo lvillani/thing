@@ -2,7 +2,10 @@ module thing
 
 go 1.26.4
 
-require charm.land/glamour/v2 v2.0.1
+require (
+	charm.land/glamour/v2 v2.0.1
+	github.com/chzyer/readline v1.5.1
+)
 
 require (
 	charm.land/lipgloss/v2 v2.0.4 // indirect

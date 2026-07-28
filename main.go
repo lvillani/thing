@@ -3,7 +3,6 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"net/http"
@@ -11,6 +10,7 @@ import (
 	"time"
 
 	"charm.land/glamour/v2"
+	"github.com/chzyer/readline"
 
 	"thing/internal/model"
 )
@@ -24,19 +24,22 @@ func main() {
 
 	ctx := context.Background()
 	client := &http.Client{Timeout: 10 * time.Minute}
-	reader := bufio.NewReader(os.Stdin)
 	messages := []model.Message{{Role: model.MessageRoleDeveloper, Content: systemPrompt}}
 
+	rl, err := readline.New("> ")
+	if err != nil {
+		panic(err)
+	}
+	defer rl.Close()
+
 	for {
-		fmt.Printf("─ ctx: %d in / %d out  cache: %s\n",
+		rl.Write(fmt.Appendf(nil, "─ ctx: %d in / %d out  cache: %s\n",
 			stats.TotalPromptTokens,
 			stats.TotalCompletionTokens,
-			cacheSummary())
-		fmt.Printf("[%d] > ", len(messages))
-		input, err := reader.ReadString('\n')
+			cacheSummary()))
+		input, err := rl.Readline()
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "read error:", err)
-			return
+			break
 		}
 
 		messages = append(messages, model.Message{Role: model.MessageRoleUser, Content: input})
