@@ -3,7 +3,10 @@
 // Package agent implements a basic and protocol-agnostic agentic loop.
 package agent
 
-import "thing/internal/model"
+import (
+	"thing/internal/model"
+	"thing/internal/tools"
+)
 
 const systemPrompt = `
 You are an expert assistant operating inside an agent harness.
@@ -11,7 +14,8 @@ You are an expert assistant operating inside an agent harness.
 
 // Agent represents an agent. It holds the conversation state.
 type Agent struct {
-	Chat model.Chat
+	Tools *tools.ToolRegistry
+	Chat  model.Chat
 
 	TotalPromptTokens      int
 	TotalCompletionTokens  int
@@ -21,29 +25,14 @@ type Agent struct {
 
 // NewAgent creates a new agent with the given model name.
 func NewAgent(modelName string) *Agent {
+	toolRegistry := tools.NewToolRegistry()
+
 	return &Agent{
+		Tools: toolRegistry,
 		Chat: model.Chat{
 			Model:    modelName,
 			Messages: []model.Message{{Role: model.MessageRoleDeveloper, Content: systemPrompt}},
-			Tools: []model.Tool{
-				{
-					Type: model.ToolTypeFunction,
-					Function: model.ToolFunctionDefinition{
-						Name:        "bash",
-						Description: "Execute a bash command. The command is passed via stdin to bash.",
-						Parameters: map[string]interface{}{
-							"type": "object",
-							"properties": map[string]interface{}{
-								"command": map[string]interface{}{
-									"type":        "string",
-									"description": "The bash command to execute",
-								},
-							},
-							"required": []string{"command"},
-						},
-					},
-				},
-			},
+			Tools:    toolRegistry.Tools(),
 		},
 	}
 }
@@ -55,8 +44,21 @@ func (a *Agent) SendMessage(content string) {
 
 // ProcessResponse appends the assistant's message to the conversation and updates usage
 // stats.
-func (a *Agent) ProcessResponse(response *model.Response) {
+func (a *Agent) ProcessResponse(response *model.Response) (bool, error) {
 	a.Chat.Messages = append(a.Chat.Messages, response.Choices[0].Message)
+
+	for _, toolCall := range response.Choices[0].Message.ToolCalls {
+		result, err := a.Tools.Run(toolCall.Function.Name, toolCall.Function.Arguments)
+		if err != nil {
+			return false, err
+		}
+
+		a.Chat.Messages = append(a.Chat.Messages, model.Message{
+			Role:       model.MessageRoleTool,
+			ToolCallID: toolCall.ID,
+			Content:    result,
+		})
+	}
 
 	if response.Usage != nil {
 		a.TotalPromptTokens += response.Usage.PromptTokens
@@ -66,4 +68,6 @@ func (a *Agent) ProcessResponse(response *model.Response) {
 			a.TotalCachedTokensRatio = float64(a.TotalCachedTokens) / float64(a.TotalPromptTokens)
 		}
 	}
+
+	return len(response.Choices[0].Message.ToolCalls) > 0, nil
 }

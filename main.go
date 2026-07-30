@@ -13,7 +13,6 @@ import (
 	"github.com/chzyer/readline"
 
 	"thing/internal/agent"
-	"thing/internal/model"
 )
 
 func main() {
@@ -48,39 +47,32 @@ func main() {
 
 		agent.SendMessage(input)
 
-		// Keep talking to the model as long as it wants to use tools.
 		for {
-			msg, err := callAPI(ctx, client, token, agent.Chat)
+			response, err := callAPI(ctx, client, token, agent.Chat)
 			if err != nil {
 				fmt.Fprintln(os.Stderr, "API error:", err)
 				break
 			}
 
-			agent.ProcessResponse(msg)
-
-			if len(msg.Choices[0].Message.ToolCalls) == 0 {
-				// Model produced a final answer.
-				if msg.Choices[0].Message.Content != "" {
-					out, err := glamour.Render(msg.Choices[0].Message.Content, "dark")
-					if err != nil {
-						fmt.Println(msg.Choices[0].Message.Content)
-					} else {
-						fmt.Print(out)
-					}
-				}
+			hasToolCalls, err := agent.ProcessResponse(response)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err)
 				break
 			}
 
-			// Execute each tool call and feed results back.
-			for _, tc := range msg.Choices[0].Message.ToolCalls {
-				result := executeTool(tc)
-				agent.Chat.Messages = append(agent.Chat.Messages, model.Message{
-					Role:       model.MessageRoleTool,
-					ToolCallID: tc.ID,
-					Content:    result,
-				})
+			if hasToolCalls {
+				continue
 			}
-			// Loop back: send tool results to the model.
+
+			// Final answer
+			out, err := glamour.Render(response.Choices[0].Message.Content, "dark")
+			if err != nil {
+				fmt.Println(response.Choices[0].Message.Content)
+			} else {
+				fmt.Print(out)
+			}
+
+			break
 		}
 	}
 }
