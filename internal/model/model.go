@@ -29,6 +29,33 @@ type Chat struct {
 	Messages []Message `json:"messages"`
 }
 
+// Tool represents a function tool that can be used to generate a response.
+type Tool struct {
+	Type     ToolType               `json:"type"`
+	Function ToolFunctionDefinition `json:"function"`
+}
+
+// NewTool creates a new Tool instance with the given name and parameters.
+func NewTool(name string, parameters map[string]any) *Tool {
+	return &Tool{
+		Type: ToolTypeFunction,
+		Function: ToolFunctionDefinition{
+			Name:        name,
+			Strict:      true,
+			Description: "",
+			Parameters:  parameters,
+		},
+	}
+}
+
+// ToolFunctionDefinition represents the definition of a function tool.
+type ToolFunctionDefinition struct {
+	Name        string         `json:"name"`
+	Strict      bool           `json:"strict"`                // Must always be true.
+	Description string         `json:"description,omitempty"` // Optional description of the tool.
+	Parameters  map[string]any `json:"parameters,omitempty"`  // JSON Schema describing the function's parameters.
+}
+
 // Message represents a single message in a chat conversation.
 type Message struct {
 	Role       MessageRole `json:"role"`
@@ -45,33 +72,6 @@ type ToolCall struct {
 		Name      string `json:"name"`
 		Arguments string `json:"arguments"` // Should be in JSON format.
 	} `json:"function"`
-}
-
-// Tool represents a function tool that can be used to generate a response.
-type Tool struct {
-	Type     ToolType               `json:"type"`
-	Function ToolFunctionDefinition `json:"function"`
-}
-
-// ToolFunctionDefinition represents the definition of a function tool.
-type ToolFunctionDefinition struct {
-	Name        string         `json:"name"`
-	Strict      bool           `json:"strict"`                // Must always be true.
-	Description string         `json:"description,omitempty"` // Optional description of the tool.
-	Parameters  map[string]any `json:"parameters,omitempty"`  // JSON Schema describing the function's parameters.
-}
-
-// NewTool creates a new Tool instance with the given name and parameters.
-func NewTool(name string, parameters map[string]any) *Tool {
-	return &Tool{
-		Type: ToolTypeFunction,
-		Function: ToolFunctionDefinition{
-			Name:        name,
-			Strict:      true,
-			Description: "",
-			Parameters:  parameters,
-		},
-	}
 }
 
 // Response represents the response from the model.
