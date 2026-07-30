@@ -11,30 +11,6 @@ import (
 	"thing/internal/model"
 )
 
-// toolDefinitions returns the tool specs sent to the API.
-// To add a new tool: add it here and add a case in executeTool.
-func toolDefinitions() []model.Tool {
-	return []model.Tool{
-		{
-			Type: model.ToolTypeFunction,
-			Function: model.ToolFunctionDefinition{
-				Name:        "bash",
-				Description: "Execute a bash command. The command is passed via stdin to bash.",
-				Parameters: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"command": map[string]interface{}{
-							"type":        "string",
-							"description": "The bash command to execute",
-						},
-					},
-					"required": []string{"command"},
-				},
-			},
-		},
-	}
-}
-
 // executeTool dispatches a tool call and returns the result string.
 func executeTool(tc model.ToolCall) string {
 	switch tc.Function.Name {

@@ -12,6 +12,7 @@ import (
 	"charm.land/glamour/v2"
 	"github.com/chzyer/readline"
 
+	"thing/internal/agent"
 	"thing/internal/model"
 )
 
@@ -23,8 +24,8 @@ func main() {
 	}
 
 	ctx := context.Background()
+	agent := agent.NewAgent(modelName)
 	client := &http.Client{Timeout: 10 * time.Minute}
-	messages := []model.Message{{Role: model.MessageRoleDeveloper, Content: systemPrompt}}
 
 	rl, err := readline.New("> ")
 	if err != nil {
@@ -33,32 +34,36 @@ func main() {
 	defer rl.Close()
 
 	for {
-		rl.Write(fmt.Appendf(nil, "─ ctx: %d in / %d out  cache: %s\n",
-			stats.TotalPromptTokens,
-			stats.TotalCompletionTokens,
-			cacheSummary()))
+		rl.Write(fmt.Appendf(nil, "─ ctx: %d in / %d out  cache: %.1f%% (%d/%d)\n",
+			agent.TotalPromptTokens,
+			agent.TotalCompletionTokens,
+			agent.TotalCachedTokensRatio*100,
+			agent.TotalCachedTokens,
+			agent.TotalPromptTokens,
+		))
 		input, err := rl.Readline()
 		if err != nil {
 			break
 		}
 
-		messages = append(messages, model.Message{Role: model.MessageRoleUser, Content: input})
+		agent.SendMessage(input)
 
 		// Keep talking to the model as long as it wants to use tools.
 		for {
-			msg, err := callAPI(ctx, client, token, messages)
+			msg, err := callAPI(ctx, client, token, agent.Chat)
 			if err != nil {
 				fmt.Fprintln(os.Stderr, "API error:", err)
 				break
 			}
-			messages = append(messages, *msg)
 
-			if len(msg.ToolCalls) == 0 {
+			agent.ProcessResponse(msg)
+
+			if len(msg.Choices[0].Message.ToolCalls) == 0 {
 				// Model produced a final answer.
-				if msg.Content != "" {
-					out, err := glamour.Render(msg.Content, "dark")
+				if msg.Choices[0].Message.Content != "" {
+					out, err := glamour.Render(msg.Choices[0].Message.Content, "dark")
 					if err != nil {
-						fmt.Println(msg.Content)
+						fmt.Println(msg.Choices[0].Message.Content)
 					} else {
 						fmt.Print(out)
 					}
@@ -67,9 +72,9 @@ func main() {
 			}
 
 			// Execute each tool call and feed results back.
-			for _, tc := range msg.ToolCalls {
+			for _, tc := range msg.Choices[0].Message.ToolCalls {
 				result := executeTool(tc)
-				messages = append(messages, model.Message{
+				agent.Chat.Messages = append(agent.Chat.Messages, model.Message{
 					Role:       model.MessageRoleTool,
 					ToolCallID: tc.ID,
 					Content:    result,

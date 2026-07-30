@@ -13,37 +13,15 @@ import (
 	"thing/internal/model"
 )
 
-const endpoint = "https://openrouter.ai/api/v1/chat/completions"
-const modelName = "deepseek/deepseek-v4-flash"
+// const endpoint = "https://openrouter.ai/api/v1/chat/completions"
+const endpoint = "http://localhost:8080/v1/chat/completions"
 
-const systemPrompt = `
-You are an expert assistant operating inside an agent harness.
-`
-
-// Stats holds cumulative usage and cache metrics.
-var stats struct {
-	TotalPromptTokens     int
-	TotalCompletionTokens int
-	TotalCachedTokens     int
-}
-
-// cacheSummary returns a string describing cached vs total prompt tokens.
-func cacheSummary() string {
-	if stats.TotalPromptTokens == 0 {
-		return "—"
-	}
-	pct := float64(stats.TotalCachedTokens) / float64(stats.TotalPromptTokens) * 100
-	return fmt.Sprintf("%.1f%% (%d/%d cached)",
-		pct, stats.TotalCachedTokens, stats.TotalPromptTokens)
-}
+// const modelName = "deepseek/deepseek-v4-flash"
+const modelName = "gemma-4-26b-a4b-it"
 
 // callAPI sends the conversation to the model and returns the assistant's reply.
-func callAPI(ctx context.Context, client *http.Client, token string, messages []model.Message) (*model.Message, error) {
-	body, err := json.Marshal(model.Chat{
-		Model:    modelName,
-		Messages: messages,
-		Tools:    toolDefinitions(),
-	})
+func callAPI(ctx context.Context, client *http.Client, token string, chat model.Chat) (*model.Response, error) {
+	body, err := json.Marshal(chat)
 	if err != nil {
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
@@ -74,14 +52,5 @@ func callAPI(ctx context.Context, client *http.Client, token string, messages []
 		return nil, fmt.Errorf("API returned no choices")
 	}
 
-	// Accumulate usage stats from the standardized response body.
-	if result.Usage != nil {
-		stats.TotalPromptTokens += result.Usage.PromptTokens
-		stats.TotalCompletionTokens += result.Usage.CompletionTokens
-		if d := result.Usage.PromptTokensDetails; d != nil {
-			stats.TotalCachedTokens += d.CachedTokens
-		}
-	}
-
-	return &result.Choices[0].Message, nil
+	return &result, nil
 }
