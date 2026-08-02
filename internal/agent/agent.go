@@ -6,6 +6,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
 	"thing/internal/model"
@@ -13,9 +14,20 @@ import (
 	"thing/internal/tools"
 )
 
-const systemPrompt = `
+// baseSystemPrompt is the static opening of every agent's system prompt.
+const baseSystemPrompt = `
 You are an expert assistant operating inside an agent harness.
 `
+
+// systemPromptWithCwd returns the system prompt prefixed with the current working
+// directory so the model knows where in the filesystem it is running.
+func systemPromptWithCwd() string {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return baseSystemPrompt
+	}
+	return fmt.Sprintf("Your current working directory is %s.\n%s", cwd, baseSystemPrompt)
+}
 
 // Model is the seam to a model transport: something that can send a conversation and
 // return the model's reply. The core depends on this interface, never on HTTP or a
@@ -41,10 +53,10 @@ type Agent struct {
 // prompt so the model knows what it can load; with no skills the catalog is omitted.
 func NewAgent(m Model, modelName string, reg ...*skills.Registry) *Agent {
 	toolRegistry := tools.NewToolRegistry()
-	prompt := systemPrompt
+	prompt := systemPromptWithCwd()
 	if len(reg) > 0 && reg[0] != nil {
 		if cat := reg[0].Catalog(); len(cat) > 0 {
-			prompt = promptWithCatalog(systemPrompt, cat)
+			prompt = promptWithCatalog(prompt, cat)
 		}
 	}
 

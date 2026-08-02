@@ -341,3 +341,16 @@ func TestRun_ToolErrorFeedsBackToModel(t *testing.T) {
 		t.Error("conversation lacks the tool error fed back to the model for call_1")
 	}
 }
+
+func TestNewAgent_InjectsWorkingDirectory(t *testing.T) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := NewAgent(&errModel{err: errors.New("never called")}, "m")
+
+	dev := a.Chat.Messages[0].Content
+	if !strings.Contains(dev, "Your current working directory is "+cwd) {
+		t.Errorf("opening prompt lacks the working directory: %q", dev)
+	}
+}
