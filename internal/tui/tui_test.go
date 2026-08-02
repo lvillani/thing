@@ -92,7 +92,7 @@ func TestViewIsFooterOnly(t *testing.T) {
 	m.width, m.height = 80, 24
 	m.running = true
 	frame := stripANSI(m.View())
-	if !strings.Contains(frame, "❯") || !strings.Contains(frame, "enter send") {
+	if !strings.Contains(frame, "> ") || !strings.Contains(frame, "enter send") {
 		t.Errorf("footer missing input or help: %q", frame)
 	}
 	if !strings.Contains(frame, "working") {
