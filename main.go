@@ -13,7 +13,14 @@ import (
 	"github.com/chzyer/readline"
 
 	"thing/internal/agent"
+	"thing/internal/backend"
 )
+
+// const endpoint = "https://openrouter.ai/api/v1/chat/completions"
+const endpoint = "http://localhost:8080/v1/chat/completions"
+
+// const modelName = "deepseek/deepseek-v4-flash"
+const modelName = "gemma-4-26b-a4b-it"
 
 func main() {
 	token := os.Getenv("OPENROUTER_API_TOKEN")
@@ -23,8 +30,8 @@ func main() {
 	}
 
 	ctx := context.Background()
-	agent := agent.NewAgent(modelName)
 	client := &http.Client{Timeout: 10 * time.Minute}
+	agent := agent.NewAgent(backend.NewOpenAI(token, endpoint, client), modelName)
 
 	rl, err := readline.New("> ")
 	if err != nil {
@@ -48,7 +55,7 @@ func main() {
 		agent.SendMessage(input)
 
 		for {
-			response, err := callAPI(ctx, client, token, agent.Chat)
+			response, err := agent.Model.Complete(ctx, agent.Chat)
 			if err != nil {
 				fmt.Fprintln(os.Stderr, "API error:", err)
 				break

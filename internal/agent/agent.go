@@ -4,6 +4,8 @@
 package agent
 
 import (
+	"context"
+
 	"thing/internal/model"
 	"thing/internal/tools"
 )
@@ -12,9 +14,17 @@ const systemPrompt = `
 You are an expert assistant operating inside an agent harness.
 `
 
+// Model is the seam to a model transport: something that can send a conversation and
+// return the model's reply. The core depends on this interface, never on HTTP or a
+// concrete backend.
+type Model interface {
+	Complete(ctx context.Context, chat model.Chat) (*model.Response, error)
+}
+
 // Agent represents an agent. It holds the conversation state.
 type Agent struct {
 	Tools *tools.ToolRegistry
+	Model Model
 	Chat  model.Chat
 
 	TotalPromptTokens      int
@@ -23,12 +33,13 @@ type Agent struct {
 	TotalCachedTokensRatio float64
 }
 
-// NewAgent creates a new agent with the given model name.
-func NewAgent(modelName string) *Agent {
+// NewAgent creates a new agent with the given model transport and model name.
+func NewAgent(m Model, modelName string) *Agent {
 	toolRegistry := tools.NewToolRegistry()
 
 	return &Agent{
 		Tools: toolRegistry,
+		Model: m,
 		Chat: model.Chat{
 			Model:    modelName,
 			Messages: []model.Message{{Role: model.MessageRoleDeveloper, Content: systemPrompt}},
