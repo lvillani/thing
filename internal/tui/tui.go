@@ -293,21 +293,22 @@ func (m Model) View() string {
 		parts = append(parts, "")
 	}
 	if m.agent != nil {
-		parts = append(parts, usageStyle.Render(m.Usage()))
+		parts = append(parts, usageStyle.Render(m.usageSummary()))
 	}
 	parts = append(parts, m.input.View())
 	parts = append(parts, m.help.ShortHelpView(m.helpBindings()))
 	return strings.Join(parts, "\n")
 }
 
-// Usage reports the live context usage of the most recent model response for the
-// context-summary line.
-func (m *Model) Usage() string {
+// usageSummary reports the live context usage of the most recent model response for
+// the context-summary line.
+func (m *Model) usageSummary() string {
+	u := m.agent.Usage()
 	return fmt.Sprintf("─ ctx: %d in / %d out  cache: %.1f%% (%d/%d)",
-		m.agent.PromptTokens,
-		m.agent.CompletionTokens,
-		m.agent.CachedTokensRatio*100,
-		m.agent.CachedTokens,
-		m.agent.PromptTokens,
+		u.PromptTokens,
+		u.CompletionTokens,
+		u.CachedTokensRatio*100,
+		u.CachedTokens,
+		u.PromptTokens,
 	)
 }

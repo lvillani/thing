@@ -28,7 +28,7 @@ type Event struct {
 	Message string
 	// Tool names the tool for KindToolCall and KindToolResult.
 	Tool string
-	// Running token totals, populated on KindFinal.
+	// Live context usage of the most recent response, populated on KindFinal.
 	PromptTokens     int
 	CompletionTokens int
 	CachedTokens     int

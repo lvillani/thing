@@ -123,9 +123,9 @@ func TestRun_StraightFinal(t *testing.T) {
 	if last.Role != model.MessageRoleAssistant || last.Content != "hello there" {
 		t.Errorf("last message = %+v, want assistant 'hello there'", last)
 	}
-	if a.PromptTokens != 10 || a.CompletionTokens != 4 || a.CachedTokens != 3 {
+	if u := a.Usage(); u.PromptTokens != 10 || u.CompletionTokens != 4 || u.CachedTokens != 3 {
 		t.Errorf("usage = in %d/out %d/cached %d, want 10/4/3",
-			a.PromptTokens, a.CompletionTokens, a.CachedTokens)
+			u.PromptTokens, u.CompletionTokens, u.CachedTokens)
 	}
 }
 
@@ -404,17 +404,17 @@ func TestRun_UsageTracksLiveContextNotAccumulatedThroughput(t *testing.T) {
 
 	evs := collect(t, a.Run(context.Background(), "grow"))
 
-	if a.PromptTokens != 3000 {
-		t.Errorf("PromptTokens = %d, want 3000 (live context of last request, not cumulative)", a.PromptTokens)
+	if u := a.Usage(); u.PromptTokens != 3000 {
+		t.Errorf("PromptTokens = %d, want 3000 (live context of last request, not cumulative)", u.PromptTokens)
 	}
-	if a.CompletionTokens != 4 {
-		t.Errorf("CompletionTokens = %d, want 4", a.CompletionTokens)
+	if u := a.Usage(); u.CompletionTokens != 4 {
+		t.Errorf("CompletionTokens = %d, want 4", u.CompletionTokens)
 	}
-	if a.CachedTokens != 1500 {
-		t.Errorf("CachedTokens = %d, want 1500 (cached 3000/2 of last request)", a.CachedTokens)
+	if u := a.Usage(); u.CachedTokens != 1500 {
+		t.Errorf("CachedTokens = %d, want 1500 (cached 3000/2 of last request)", u.CachedTokens)
 	}
-	if a.CachedTokensRatio != 0.5 {
-		t.Errorf("CachedTokensRatio = %v, want 0.5 (per-request cache hit rate)", a.CachedTokensRatio)
+	if u := a.Usage(); u.CachedTokensRatio != 0.5 {
+		t.Errorf("CachedTokensRatio = %v, want 0.5 (per-request cache hit rate)", u.CachedTokensRatio)
 	}
 	final := evs[len(evs)-1]
 	if final.PromptTokens != 3000 || final.CompletionTokens != 4 || final.CachedTokens != 1500 {

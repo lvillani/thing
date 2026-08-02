@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 
 	"thing/internal/model"
 	"thing/internal/skills"
@@ -42,10 +43,16 @@ type Agent struct {
 	Model Model
 	Chat  model.Chat
 
-	// PromptTokens, CompletionTokens and CachedTokens report the live context usage
-	// of the most recent model response — the size of the prompt sent in the last
-	// request, not a cumulative tally. CachedTokensRatio is that response's cache hit
-	// rate (cached prompt tokens / total prompt tokens).
+	usageMu sync.RWMutex
+	usage   Usage
+}
+
+// Usage is a point-in-time snapshot of the live context usage of the most recent
+// model response. PromptTokens/CompletionTokens/CachedTokens are the size of the
+// prompt, completion and cached-prompt tokens of the last request (a gauge, not a
+// cumulative tally); CachedTokensRatio is that response's cache hit rate (cached
+// prompt tokens / total prompt tokens).
+type Usage struct {
 	PromptTokens      int
 	CompletionTokens  int
 	CachedTokens      int
@@ -122,12 +129,13 @@ func (a *Agent) run(ctx context.Context, userInput string, events chan<- Event) 
 		a.accumulateUsage(response.Usage)
 
 		if len(msg.ToolCalls) == 0 {
+			u := a.Usage()
 			a.emit(ctx, events, Event{
 				Kind:             KindFinal,
 				Message:          msg.Content,
-				PromptTokens:     a.PromptTokens,
-				CompletionTokens: a.CompletionTokens,
-				CachedTokens:     a.CachedTokens,
+				PromptTokens:     u.PromptTokens,
+				CompletionTokens: u.CompletionTokens,
+				CachedTokens:     u.CachedTokens,
 			})
 			return
 		}
@@ -189,10 +197,21 @@ func (a *Agent) accumulateUsage(usage *model.ResponseUsage) {
 	if usage == nil {
 		return
 	}
-	a.PromptTokens = usage.PromptTokens
-	a.CompletionTokens = usage.CompletionTokens
+	u := Usage{PromptTokens: usage.PromptTokens, CompletionTokens: usage.CompletionTokens}
 	if details := usage.PromptTokensDetails; details != nil {
-		a.CachedTokens = details.CachedTokens
-		a.CachedTokensRatio = float64(a.CachedTokens) / float64(a.PromptTokens)
+		u.CachedTokens = details.CachedTokens
+		u.CachedTokensRatio = float64(u.CachedTokens) / float64(u.PromptTokens)
 	}
+	a.usageMu.Lock()
+	a.usage = u
+	a.usageMu.Unlock()
+}
+
+// Usage returns a snapshot of the live context usage of the most recent model
+// response, safe to call from any goroutine (e.g. a UI render loop) while a run is
+// in flight.
+func (a *Agent) Usage() Usage {
+	a.usageMu.RLock()
+	defer a.usageMu.RUnlock()
+	return a.usage
 }
