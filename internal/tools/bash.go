@@ -41,8 +41,6 @@ func (b *bash) Run(input string) (string, error) {
 		return "", fmt.Errorf("bad arguments: %v", err)
 	}
 
-	fmt.Println("[bash] " + args.Command)
-
 	cmd := exec.Command("bash")
 	cmd.Stdin = bytes.NewBufferString(args.Command)
 

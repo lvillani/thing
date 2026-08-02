@@ -3,19 +3,16 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
 	"time"
 
-	"charm.land/glamour/v2"
-	"github.com/chzyer/readline"
-
 	"thing/internal/agent"
 	"thing/internal/backend"
 	"thing/internal/skills"
+	"thing/internal/tui"
 )
 
 // const endpoint = "https://openrouter.ai/api/v1/chat/completions"
@@ -50,45 +47,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	ctx := context.Background()
 	client := &http.Client{Timeout: 10 * time.Minute}
 	a := agent.NewAgent(backend.NewOpenAI(token, endpoint, client), modelName, skillsRegistry())
 
-	rl, err := readline.New("> ")
-	if err != nil {
-		panic(err)
+	app := tui.New(a)
+	if _, err := app.Run(); err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		os.Exit(1)
 	}
-	defer rl.Close()
-
-	for {
-		rl.Write(fmt.Appendf(nil, "─ ctx: %d in / %d out  cache: %.1f%% (%d/%d)\n",
-			a.TotalPromptTokens,
-			a.TotalCompletionTokens,
-			a.TotalCachedTokensRatio*100,
-			a.TotalCachedTokens,
-			a.TotalPromptTokens,
-		))
-		input, err := rl.Readline()
-		if err != nil {
-			break
-		}
-
-		for ev := range a.Run(ctx, input) {
-			switch ev.Kind {
-			case agent.KindToolCall:
-				fmt.Printf("  → %s\n", ev.Tool)
-			case agent.KindToolResult:
-				fmt.Printf("  %s\n", ev.Message)
-			case agent.KindError:
-				fmt.Fprintln(os.Stderr, "error:", ev.Message)
-			case agent.KindFinal:
-				out, err := glamour.Render(ev.Message, "dark")
-				if err != nil {
-					fmt.Println(ev.Message)
-				} else {
-					fmt.Print(out)
-				}
-			}
-		}
-	}
+	// The footer stays on the final rendered lines; emit a fresh line so the shell
+	// prompt isn't appended right after it.
+	fmt.Println()
 }
