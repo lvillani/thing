@@ -5,8 +5,11 @@ package agent
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"thing/internal/model"
+	"thing/internal/skills"
 	"thing/internal/tools"
 )
 
@@ -33,19 +36,40 @@ type Agent struct {
 	TotalCachedTokensRatio float64
 }
 
-// NewAgent creates a new agent with the given model transport and model name.
-func NewAgent(m Model, modelName string) *Agent {
+// NewAgent creates a new agent with the given model transport and model name. If a skill
+// registry is supplied and it has skills, their catalog is injected into the opening
+// prompt so the model knows what it can load; with no skills the catalog is omitted.
+func NewAgent(m Model, modelName string, reg ...*skills.Registry) *Agent {
 	toolRegistry := tools.NewToolRegistry()
+	prompt := systemPrompt
+	if len(reg) > 0 && reg[0] != nil {
+		if cat := reg[0].Catalog(); len(cat) > 0 {
+			prompt = promptWithCatalog(systemPrompt, cat)
+		}
+	}
 
 	return &Agent{
 		Tools: toolRegistry,
 		Model: m,
 		Chat: model.Chat{
 			Model:    modelName,
-			Messages: []model.Message{{Role: model.MessageRoleDeveloper, Content: systemPrompt}},
+			Messages: []model.Message{{Role: model.MessageRoleDeveloper, Content: prompt}},
 			Tools:    toolRegistry.Tools(),
 		},
 	}
+}
+
+// promptWithCatalog appends the tier-1 skill catalog and a short activation instruction
+// to the base prompt.
+func promptWithCatalog(base string, cat []skills.Skill) string {
+	var b strings.Builder
+	b.WriteString(base)
+	b.WriteString("\n\nThe following skills provide specialized instructions for specific tasks.\n")
+	b.WriteString("When a task matches a skill's description, use bash to read the SKILL.md at its location before proceeding.\n")
+	for _, s := range cat {
+		fmt.Fprintf(&b, "- %s: %s (%s)\n", s.Name, s.Description, s.Location)
+	}
+	return b.String()
 }
 
 // Run drives the agent loop: it appends the user's message, then repeatedly calls the
