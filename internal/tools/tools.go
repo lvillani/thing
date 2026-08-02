@@ -21,14 +21,16 @@ type ToolRegistry struct {
 
 func NewToolRegistry() *ToolRegistry {
 	r := ToolRegistry{toolsFuncs: make(map[string]ToolFunction)}
-	r.register(&bash{})
+	r.Register(&bash{})
 
 	return &r
 }
 
-func (r *ToolRegistry) register(tool Tool) {
-	r.tools = append(r.tools, tool.Describe())
-	r.toolsFuncs[tool.Describe().Function.Name] = tool.Run
+// Register adds a tool so the model can invoke it.
+func (r *ToolRegistry) Register(tool Tool) {
+	desc := tool.Describe()
+	r.tools = append(r.tools, desc)
+	r.toolsFuncs[desc.Function.Name] = tool.Run
 }
 
 func (r *ToolRegistry) Tools() []model.Tool {

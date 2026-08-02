@@ -31,7 +31,7 @@ func main() {
 
 	ctx := context.Background()
 	client := &http.Client{Timeout: 10 * time.Minute}
-	agent := agent.NewAgent(backend.NewOpenAI(token, endpoint, client), modelName)
+	a := agent.NewAgent(backend.NewOpenAI(token, endpoint, client), modelName)
 
 	rl, err := readline.New("> ")
 	if err != nil {
@@ -41,45 +41,33 @@ func main() {
 
 	for {
 		rl.Write(fmt.Appendf(nil, "─ ctx: %d in / %d out  cache: %.1f%% (%d/%d)\n",
-			agent.TotalPromptTokens,
-			agent.TotalCompletionTokens,
-			agent.TotalCachedTokensRatio*100,
-			agent.TotalCachedTokens,
-			agent.TotalPromptTokens,
+			a.TotalPromptTokens,
+			a.TotalCompletionTokens,
+			a.TotalCachedTokensRatio*100,
+			a.TotalCachedTokens,
+			a.TotalPromptTokens,
 		))
 		input, err := rl.Readline()
 		if err != nil {
 			break
 		}
 
-		agent.SendMessage(input)
-
-		for {
-			response, err := agent.Model.Complete(ctx, agent.Chat)
-			if err != nil {
-				fmt.Fprintln(os.Stderr, "API error:", err)
-				break
+		for ev := range a.Run(ctx, input) {
+			switch ev.Kind {
+			case agent.KindToolCall:
+				fmt.Printf("  → %s\n", ev.Tool)
+			case agent.KindToolResult:
+				fmt.Printf("  %s\n", ev.Message)
+			case agent.KindError:
+				fmt.Fprintln(os.Stderr, "error:", ev.Message)
+			case agent.KindFinal:
+				out, err := glamour.Render(ev.Message, "dark")
+				if err != nil {
+					fmt.Println(ev.Message)
+				} else {
+					fmt.Print(out)
+				}
 			}
-
-			hasToolCalls, err := agent.ProcessResponse(response)
-			if err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				break
-			}
-
-			if hasToolCalls {
-				continue
-			}
-
-			// Final answer
-			out, err := glamour.Render(response.Choices[0].Message.Content, "dark")
-			if err != nil {
-				fmt.Println(response.Choices[0].Message.Content)
-			} else {
-				fmt.Print(out)
-			}
-
-			break
 		}
 	}
 }

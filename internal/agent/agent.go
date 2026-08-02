@@ -48,37 +48,94 @@ func NewAgent(m Model, modelName string) *Agent {
 	}
 }
 
-// SendMessage appends a user message to the conversation.
-func (a *Agent) SendMessage(content string) {
-	a.Chat.Messages = append(a.Chat.Messages, model.Message{Role: model.MessageRoleUser, Content: content})
+// Run drives the agent loop: it appends the user's message, then repeatedly calls the
+// model, runs any requested tools, and reports each step as an Event on the returned
+// channel. The channel is closed exactly once when the run finishes. Cancelling ctx
+// stops the loop and terminates the producer goroutine — even if the consumer stops
+// draining the channel; cancellation is observed as soon as the model transport or
+// event delivery returns to the loop.
+func (a *Agent) Run(ctx context.Context, userInput string) <-chan Event {
+	events := make(chan Event)
+	go func() {
+		defer close(events)
+		a.run(ctx, userInput, events)
+	}()
+	return events
 }
 
-// ProcessResponse appends the assistant's message to the conversation and updates usage
-// stats.
-func (a *Agent) ProcessResponse(response *model.Response) (bool, error) {
-	a.Chat.Messages = append(a.Chat.Messages, response.Choices[0].Message)
+func (a *Agent) run(ctx context.Context, userInput string, events chan<- Event) {
+	a.Chat.Messages = append(a.Chat.Messages, model.Message{Role: model.MessageRoleUser, Content: userInput})
 
-	for _, toolCall := range response.Choices[0].Message.ToolCalls {
-		result, err := a.Tools.Run(toolCall.Function.Name, toolCall.Function.Arguments)
+	for {
+		response, err := a.Model.Complete(ctx, a.Chat)
 		if err != nil {
-			return false, err
+			a.emit(ctx, events, Event{Kind: KindError, Message: err.Error()})
+			return
+		}
+		if len(response.Choices) == 0 {
+			a.emit(ctx, events, Event{Kind: KindError, Message: "model returned no choices"})
+			return
 		}
 
-		a.Chat.Messages = append(a.Chat.Messages, model.Message{
-			Role:       model.MessageRoleTool,
-			ToolCallID: toolCall.ID,
-			Content:    result,
-		})
-	}
+		msg := response.Choices[0].Message
+		a.Chat.Messages = append(a.Chat.Messages, msg)
+		a.accumulateUsage(response.Usage)
 
-	if response.Usage != nil {
-		a.TotalPromptTokens += response.Usage.PromptTokens
-		a.TotalCompletionTokens += response.Usage.CompletionTokens
-		if details := response.Usage.PromptTokensDetails; details != nil {
-			a.TotalCachedTokens += details.CachedTokens
-			a.TotalCachedTokensRatio = float64(a.TotalCachedTokens) / float64(a.TotalPromptTokens)
+		if len(msg.ToolCalls) == 0 {
+			a.emit(ctx, events, Event{
+				Kind:             KindFinal,
+				Message:          msg.Content,
+				PromptTokens:     a.TotalPromptTokens,
+				CompletionTokens: a.TotalCompletionTokens,
+				CachedTokens:     a.TotalCachedTokens,
+			})
+			return
+		}
+
+		if msg.Content != "" && !a.emit(ctx, events, Event{Kind: KindAssistant, Message: msg.Content}) {
+			return
+		}
+		for _, toolCall := range msg.ToolCalls {
+			if !a.emit(ctx, events, Event{Kind: KindToolCall, Tool: toolCall.Function.Name}) {
+				return
+			}
+			result, err := a.Tools.Run(toolCall.Function.Name, toolCall.Function.Arguments)
+			if err != nil {
+				a.emit(ctx, events, Event{Kind: KindError, Message: err.Error()})
+				return
+			}
+			if !a.emit(ctx, events, Event{Kind: KindToolResult, Tool: toolCall.Function.Name, Message: result}) {
+				return
+			}
+			a.Chat.Messages = append(a.Chat.Messages, model.Message{
+				Role:       model.MessageRoleTool,
+				ToolCallID: toolCall.ID,
+				Content:    result,
+			})
 		}
 	}
+}
 
-	return len(response.Choices[0].Message.ToolCalls) > 0, nil
+// emit delivers an event, returning false when ctx is cancelled so the run can stop
+// even if the consumer has stopped draining the channel.
+func (a *Agent) emit(ctx context.Context, events chan<- Event, ev Event) bool {
+	select {
+	case events <- ev:
+		return true
+	case <-ctx.Done():
+		return false
+	}
+}
+
+// accumulateUsage adds a response's token accounting to the running totals.
+func (a *Agent) accumulateUsage(usage *model.ResponseUsage) {
+	if usage == nil {
+		return
+	}
+	a.TotalPromptTokens += usage.PromptTokens
+	a.TotalCompletionTokens += usage.CompletionTokens
+	if details := usage.PromptTokensDetails; details != nil {
+		a.TotalCachedTokens += details.CachedTokens
+		a.TotalCachedTokensRatio = float64(a.TotalCachedTokens) / float64(a.TotalPromptTokens)
+	}
 }
