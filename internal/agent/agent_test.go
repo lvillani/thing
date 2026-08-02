@@ -123,9 +123,9 @@ func TestRun_StraightFinal(t *testing.T) {
 	if last.Role != model.MessageRoleAssistant || last.Content != "hello there" {
 		t.Errorf("last message = %+v, want assistant 'hello there'", last)
 	}
-	if a.TotalPromptTokens != 10 || a.TotalCompletionTokens != 4 || a.TotalCachedTokens != 3 {
+	if a.PromptTokens != 10 || a.CompletionTokens != 4 || a.CachedTokens != 3 {
 		t.Errorf("usage = in %d/out %d/cached %d, want 10/4/3",
-			a.TotalPromptTokens, a.TotalCompletionTokens, a.TotalCachedTokens)
+			a.PromptTokens, a.CompletionTokens, a.CachedTokens)
 	}
 }
 
@@ -352,5 +352,73 @@ func TestNewAgent_InjectsWorkingDirectory(t *testing.T) {
 	dev := a.Chat.Messages[0].Content
 	if !strings.Contains(dev, "Your current working directory is "+cwd) {
 		t.Errorf("opening prompt lacks the working directory: %q", dev)
+	}
+}
+
+// growingContextModel reports a distinct live context size per request, growing as the
+// conversation lengthens — the shape of a real agentic conversation where each round
+// re-sends the accumulated history. Used to prove usage tracks the live context gauge,
+// not a cumulative throughput tally.
+type growingContextModel struct {
+	prompts []int
+	rounds  []model.Message
+}
+
+func (g *growingContextModel) Complete(_ context.Context, chat model.Chat) (*model.Response, error) {
+	var msg model.Message
+	if len(g.rounds) > 0 {
+		msg = g.rounds[0]
+		g.rounds = g.rounds[1:]
+	} else {
+		msg = model.Message{Role: model.MessageRoleAssistant, Content: "final"}
+	}
+	prompt := g.prompts[0]
+	g.prompts = g.prompts[1:]
+	return &model.Response{
+		Choices: []struct {
+			Message model.Message `json:"message"`
+		}{{Message: msg}},
+		Usage: &model.ResponseUsage{
+			PromptTokens:     prompt,
+			CompletionTokens: 4,
+			TotalTokens:      prompt + 4,
+			PromptTokensDetails: &model.ResponseUsageDetails{CachedTokens: prompt / 2},
+		},
+	}, nil
+}
+
+func TestRun_UsageTracksLiveContextNotAccumulatedThroughput(t *testing.T) {
+	// Three requests with growing context sizes: 1000, 2000, 3000. The live-context
+	// gauge must report 3000/4 cached 1500 — the last response — NOT the sum 6000.
+	toolMsg := model.Message{Role: model.MessageRoleAssistant,
+		ToolCalls: []model.ToolCall{{ID: "call_1", Type: "function", Function: struct {
+			Name      string `json:"name"`
+			Arguments string `json:"arguments"`
+		}{Name: "echo", Arguments: `{}`}}}}
+	g := &growingContextModel{
+		prompts: []int{1000, 2000, 3000},
+		rounds:  []model.Message{toolMsg, toolMsg},
+	}
+	a := NewAgent(g, "fake-model")
+	a.Tools.Register(&fakeTool{out: "echoed"})
+
+	evs := collect(t, a.Run(context.Background(), "grow"))
+
+	if a.PromptTokens != 3000 {
+		t.Errorf("PromptTokens = %d, want 3000 (live context of last request, not cumulative)", a.PromptTokens)
+	}
+	if a.CompletionTokens != 4 {
+		t.Errorf("CompletionTokens = %d, want 4", a.CompletionTokens)
+	}
+	if a.CachedTokens != 1500 {
+		t.Errorf("CachedTokens = %d, want 1500 (cached 3000/2 of last request)", a.CachedTokens)
+	}
+	if a.CachedTokensRatio != 0.5 {
+		t.Errorf("CachedTokensRatio = %v, want 0.5 (per-request cache hit rate)", a.CachedTokensRatio)
+	}
+	final := evs[len(evs)-1]
+	if final.PromptTokens != 3000 || final.CompletionTokens != 4 || final.CachedTokens != 1500 {
+		t.Errorf("final event usage = in %d/out %d/cached %d, want 3000/4/1500",
+			final.PromptTokens, final.CompletionTokens, final.CachedTokens)
 	}
 }

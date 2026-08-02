@@ -300,13 +300,14 @@ func (m Model) View() string {
 	return strings.Join(parts, "\n")
 }
 
-// Usage reports aggregate token totals for a context-summary line.
+// Usage reports the live context usage of the most recent model response for the
+// context-summary line.
 func (m *Model) Usage() string {
 	return fmt.Sprintf("─ ctx: %d in / %d out  cache: %.1f%% (%d/%d)",
-		m.agent.TotalPromptTokens,
-		m.agent.TotalCompletionTokens,
-		m.agent.TotalCachedTokensRatio*100,
-		m.agent.TotalCachedTokens,
-		m.agent.TotalPromptTokens,
+		m.agent.PromptTokens,
+		m.agent.CompletionTokens,
+		m.agent.CachedTokensRatio*100,
+		m.agent.CachedTokens,
+		m.agent.PromptTokens,
 	)
 }

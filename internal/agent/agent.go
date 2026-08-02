@@ -42,10 +42,14 @@ type Agent struct {
 	Model Model
 	Chat  model.Chat
 
-	TotalPromptTokens      int
-	TotalCompletionTokens  int
-	TotalCachedTokens      int
-	TotalCachedTokensRatio float64
+	// PromptTokens, CompletionTokens and CachedTokens report the live context usage
+	// of the most recent model response — the size of the prompt sent in the last
+	// request, not a cumulative tally. CachedTokensRatio is that response's cache hit
+	// rate (cached prompt tokens / total prompt tokens).
+	PromptTokens      int
+	CompletionTokens  int
+	CachedTokens      int
+	CachedTokensRatio float64
 }
 
 // NewAgent creates a new agent with the given model transport and model name. If a skill
@@ -121,9 +125,9 @@ func (a *Agent) run(ctx context.Context, userInput string, events chan<- Event) 
 			a.emit(ctx, events, Event{
 				Kind:             KindFinal,
 				Message:          msg.Content,
-				PromptTokens:     a.TotalPromptTokens,
-				CompletionTokens: a.TotalCompletionTokens,
-				CachedTokens:     a.TotalCachedTokens,
+				PromptTokens:     a.PromptTokens,
+				CompletionTokens: a.CompletionTokens,
+				CachedTokens:     a.CachedTokens,
 			})
 			return
 		}
@@ -175,15 +179,20 @@ func (a *Agent) emit(ctx context.Context, events chan<- Event, ev Event) bool {
 	}
 }
 
-// accumulateUsage adds a response's token accounting to the running totals.
+// accumulateUsage records the live context usage of the most recent model response.
+// The Chat Completions API reports prompt_tokens as the size of the context sent for
+// that request, which grows as the conversation lengthens — accumulating it would
+// vastly over-count the context window. So we replace (not add to) the running usage
+// with the latest response's, keeping the counters as a gauge of live context rather
+// than throughput.
 func (a *Agent) accumulateUsage(usage *model.ResponseUsage) {
 	if usage == nil {
 		return
 	}
-	a.TotalPromptTokens += usage.PromptTokens
-	a.TotalCompletionTokens += usage.CompletionTokens
+	a.PromptTokens = usage.PromptTokens
+	a.CompletionTokens = usage.CompletionTokens
 	if details := usage.PromptTokensDetails; details != nil {
-		a.TotalCachedTokens += details.CachedTokens
-		a.TotalCachedTokensRatio = float64(a.TotalCachedTokens) / float64(a.TotalPromptTokens)
+		a.CachedTokens = details.CachedTokens
+		a.CachedTokensRatio = float64(a.CachedTokens) / float64(a.PromptTokens)
 	}
 }
