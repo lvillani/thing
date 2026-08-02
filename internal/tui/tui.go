@@ -66,6 +66,7 @@ type Model struct {
 	runID   int
 
 	input   textinput.Model
+	mention mention
 	history []string
 	histIdx int // -1 means a fresh (empty) input; otherwise an index into history
 	spinner spinner.Model
@@ -85,6 +86,7 @@ func newModel(a *agent.Agent) *Model {
 	return &Model{
 		agent:   a,
 		input:   input,
+		mention: newMention(),
 		spinner: spinner.New(spinner.WithSpinner(spinner.Dot)),
 		help:    help.New(),
 		keys:    defaultKeyMap(),
@@ -257,6 +259,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 
 	case tea.KeyMsg:
+		// File-reference popup active: arrows move the selection, Tab/Enter commit,
+		// Esc closes. All other keys edit the input and re-sync the popup.
+		if m.mention.open {
+			switch msg.String() {
+			case "up":
+				return m.mentionCursorUp(), nil
+			case "down":
+				return m.mentionCursorDown(), nil
+			case "esc":
+				return m.mentionClosed(), nil
+			case "tab", "enter", "right":
+				return m.commitMention(), nil
+			}
+		}
 		switch {
 		case key.Matches(msg, m.keys.Quit):
 			m.cancelRun()
@@ -264,16 +280,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keys.Cancel):
 			if m.running {
 				m.cancelRun()
+			} else if m.mention.open {
+				return m.mentionClosed(), nil
 			}
 			return m, nil
 		case key.Matches(msg, m.keys.Send):
 			return m.handleEnter()
 		case key.Matches(msg, m.keys.History):
-			m.navigateHistory(msg.String())
+			// Arrow up/down while NOT typing a mention is history navigation.
+			if !m.mention.open {
+				m.navigateHistory(msg.String())
+			}
 			return m, nil
 		default:
 			var cmd tea.Cmd
 			m.input, cmd = m.input.Update(msg)
+			m = m.refreshMention()
 			return m, cmd
 		}
 
@@ -291,6 +313,9 @@ func (m Model) View() string {
 		parts = append(parts, m.spinner.View()+" working…")
 	} else {
 		parts = append(parts, "")
+	}
+	if m.mention.open {
+		parts = append(parts, m.renderMention())
 	}
 	if m.agent != nil {
 		parts = append(parts, usageStyle.Render(m.usageSummary()))

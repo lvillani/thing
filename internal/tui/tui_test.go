@@ -105,3 +105,114 @@ func TestViewIsFooterOnly(t *testing.T) {
 func mergeLines(s string) string {
 	return strings.Join(strings.Fields(s), " ")
 }
+
+func TestMentionQuery(t *testing.T) {
+	cases := []struct {
+		value string
+		pos   int
+		query string
+		ok    bool
+	}{
+		{value: "", pos: 0, query: "", ok: false},
+		{value: "hi ", pos: 3, query: "", ok: false},
+		{value: "@", pos: 1, query: "", ok: true},
+		{value: "read @no", pos: 8, query: "no", ok: true},
+		{value: "read @doc", pos: 9, query: "doc", ok: true},
+		{value: "read @doc done", pos: 9, query: "doc", ok: true}, // cursor before " done"
+		{value: "read @do c", pos: 9, query: "", ok: false},       // whitespace after @
+		{value: "read @a@b", pos: 9, query: "b", ok: true},        // nearest @
+	}
+	for _, c := range cases {
+		q, ok := mentionQuery(c.value, c.pos)
+		if ok != c.ok || q != c.query {
+			t.Errorf("mentionQuery(%q, %d) = (%q, %v), want (%q, %v)",
+				c.value, c.pos, q, ok, c.query, c.ok)
+		}
+	}
+}
+
+func TestMentionMatches(t *testing.T) {
+	m := newTestModel()
+	m.mention.open = true
+	m.mention.dir = "."
+	m.mention.all = []string{"docs/", "go.mod", "main.go"}
+	m.input.SetValue("@go")
+	m.input.SetCursor(3)
+
+	matches := m.mentionMatches()
+	// "go" is a subsequence of "go.mod" (prefix) and "main.go" too; prefix wins rank.
+	if len(matches) != 2 || matches[0] != "go.mod" {
+		t.Errorf("matches = %v, want [go.mod main.go] with go.mod first", matches)
+	}
+}
+
+func TestMentionFuzzyRanking(t *testing.T) {
+	m := newTestModel()
+	m.mention.open = true
+	m.mention.all = []string{
+		"internal/agt/core.go",
+		"internal/agent/core.go",
+		"cmd/main.go",
+		"README.md",
+	}
+	// Query "agtcore" is not a prefix of anything but is a subsequence of both
+	// "internal/agt/core.go" and "internal/agent/core.go". The tighter span match
+	// ("agt/core" vs "agent/core") should rank first.
+	m.input.SetValue("@agtcore")
+	m.input.SetCursor(8)
+
+	matches := m.mentionMatches()
+	wantFirst := "internal/agt/core.go"
+	if len(matches) == 0 || matches[0] != wantFirst {
+		t.Errorf("fuzzy top = %v, want %q first", matches, wantFirst)
+	}
+	for _, m := range matches {
+		if !strings.Contains(m, "core.go") {
+			t.Errorf("unexpected fuzzy match %q", m)
+		}
+	}
+}
+
+func TestFuzzyScore(t *testing.T) {
+	cases := []struct {
+		name, query string
+		want        bool
+	}{
+		{"go.mod", "gm", true},     // subsequence
+		{"go.mod", "gd", true},     // subsequence (g..d)
+		{"go.mod", "xyz", false},   // not a subsequence
+		{"go.mod", "go.mod", true}, // exact
+		{"go.mod", "g", true},
+	}
+	for _, c := range cases {
+		_, ok := fuzzyScore(c.name, c.query)
+		if ok != c.want {
+			t.Errorf("fuzzyScore(%q, %q) ok=%v, want %v", c.name, c.query, ok, c.want)
+		}
+	}
+	// Prefix must always beat non-prefix.
+	px, _ := fuzzyScore("go.mod", "go")
+	np, _ := fuzzyScore("main.go", "go")
+	if px >= np {
+		t.Errorf("prefix score %d should be < non-prefix %d", px, np)
+	}
+}
+
+func TestMentionCommitReplacesQuery(t *testing.T) {
+	m := newTestModel()
+	m.mention.open = true
+	m.mention.dir = "."
+	m.mention.all = []string{"docs/", "go.mod", "main.go"}
+	m.input.SetValue("read @go")
+	m.input.SetCursor(8) // after @go
+	m.mention.selected = 0
+
+	*m = m.commitMention()
+	want := "read @go.mod "
+	if m.input.Value() != want {
+		t.Errorf("after commit: %q, want %q", m.input.Value(), want)
+	}
+	if m.mention.open {
+		t.Errorf("expected mention popup to close")
+	}
+}
