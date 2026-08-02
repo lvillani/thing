@@ -15,11 +15,8 @@ import (
 	"thing/internal/tui"
 )
 
-// const endpoint = "https://openrouter.ai/api/v1/chat/completions"
-const endpoint = "http://localhost:8080/v1/chat/completions"
-
-// const modelName = "deepseek/deepseek-v4-flash"
-const modelName = "gemma-4-26b-a4b-it"
+const endpoint = "https://openrouter.ai/api/v1/chat/completions"
+const modelName = "deepseek/deepseek-v4-flash-0731"
 
 // skillsRegistry builds the skill registry from the user-level and project-level skill
 // locations, with the project overriding the user on a name collision. It returns nil
