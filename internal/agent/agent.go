@@ -125,8 +125,20 @@ func (a *Agent) run(ctx context.Context, userInput string, events chan<- Event) 
 			}
 			result, err := a.Tools.Run(toolCall.Function.Name, toolCall.Function.Arguments)
 			if err != nil {
-				a.emit(ctx, events, Event{Kind: KindError, Message: err.Error()})
-				return
+				// A failed tool call must not terminate the run: feed the failure back
+				// to the model as a tool result so it can see the error and react
+				// (retry, apologise, or pick a different approach). The event is a tool
+				// result carrying the error text, not a terminal KindError.
+				result = "error: " + err.Error()
+				if !a.emit(ctx, events, Event{Kind: KindToolResult, Tool: toolCall.Function.Name, Message: result}) {
+					return
+				}
+				a.Chat.Messages = append(a.Chat.Messages, model.Message{
+					Role:       model.MessageRoleTool,
+					ToolCallID: toolCall.ID,
+					Content:    result,
+				})
+				continue
 			}
 			if !a.emit(ctx, events, Event{Kind: KindToolResult, Tool: toolCall.Function.Name, Message: result}) {
 				return

@@ -77,6 +77,17 @@ func collect(t *testing.T, ch <-chan Event) []Event {
 	}
 }
 
+// errTool always fails, used to exercise tool-error propagation in the loop.
+type errTool struct{}
+
+func (t *errTool) Describe() model.Tool {
+	return model.Tool{Type: model.ToolTypeFunction, Function: model.ToolFunctionDefinition{Name: "boom"}}
+}
+
+func (t *errTool) Run(input string) (string, error) {
+	return "", errors.New("kaboom")
+}
+
 func finalResponse(msg model.Message) *model.Response {
 	return &model.Response{
 		Choices: []struct {
@@ -278,5 +289,55 @@ func TestNewAgent_OmitsCatalogWhenNoSkills(t *testing.T) {
 		if strings.Contains(dev, "skills provide specialized") {
 			t.Errorf("catalog/instruction leaked into the prompt when no skills exist: %q", dev)
 		}
+	}
+}
+
+func TestRun_ToolErrorFeedsBackToModel(t *testing.T) {
+	// A tool call that errors must NOT terminate the run. The failure is fed back to
+	// the model as a tool result (so the model can see and react to it), and the loop
+	// continues to a final answer.
+	toolResp := model.Message{Role: model.MessageRoleAssistant, Content: "", ToolCalls: []model.ToolCall{{
+		ID:   "call_1",
+		Type: "function",
+		Function: struct {
+			Name      string `json:"name"`
+			Arguments string `json:"arguments"`
+		}{Name: "boom", Arguments: `{}`},
+	}}}
+	f := &fakeModel{responses: []*model.Response{
+		finalResponse(toolResp),
+		finalResponse(model.Message{Role: model.MessageRoleAssistant, Content: "ok, noted the failure"}),
+	}}
+
+	a := NewAgent(f, "fake-model")
+	a.Tools.Register(&errTool{})
+
+	evs := collect(t, a.Run(context.Background(), "trigger a failure"))
+
+	want := []EventKind{KindToolCall, KindToolResult, KindFinal}
+	if len(evs) != len(want) {
+		t.Fatalf("events = %+v, want %v (tool error must not terminate the run)", evs, want)
+	}
+	for i, k := range want {
+		if evs[i].Kind != k {
+			t.Errorf("event[%d].Kind = %s, want %s", i, evs[i].Kind, k)
+		}
+	}
+	if !strings.Contains(evs[1].Message, "kaboom") {
+		t.Errorf("tool result = %q, want it to carry the tool error 'kaboom'", evs[1].Message)
+	}
+	if evs[2].Message != "ok, noted the failure" {
+		t.Errorf("final = %q, want the model's reaction to the failure", evs[2].Message)
+	}
+
+	// The failure was fed back to the model as a tool message.
+	found := false
+	for _, m := range a.Chat.Messages {
+		if m.Role == model.MessageRoleTool && m.ToolCallID == "call_1" && strings.Contains(m.Content, "kaboom") {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("conversation lacks the tool error fed back to the model for call_1")
 	}
 }

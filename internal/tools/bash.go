@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+	"strings"
 
 	"thing/internal/model"
 )
@@ -47,7 +48,12 @@ func (b *bash) Run(input string) (string, error) {
 	out, err := cmd.CombinedOutput()
 	result := string(out)
 	if err != nil {
-		return "", err
+		// Feed the command's own output (stdout+stderr) back with the error so the
+		// model can see what actually went wrong (e.g. rc != 0 producing stderr).
+		if strings.TrimSpace(result) == "" {
+			return "", err
+		}
+		return "", fmt.Errorf("%s (rc=%v)\n%s", err, cmd.ProcessState.ExitCode(), result)
 	}
 
 	return result, err
