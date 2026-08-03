@@ -4,23 +4,23 @@
 
 ## Context and Problem Statement
 
-The agent loop ("call the model, run any tool calls, repeat until a final answer") is
-the whole point of this project, and it needs to be shared by every UI surface (TUI now,
-ACP/AHP/RPC later). If the UI drives each request/response round, each surface
-re-implements the loop.
+The agent loop is the heart of this project. It calls the model, runs any tool calls,
+and repeats until it reaches a final answer. Every UI surface (the TUI now, and
+ACP/AHP/RPC later) needs this loop. If the UI drives each request/response round, every
+surface ends up re-implementing the same loop.
 
 ## Decision
 
-`internal/agent` runs the agent loop itself (`Agent.Run(ctx, input)`) and reports
-progress to whatever UI is attached by writing typed `Event`s onto a channel. We chose a
-channel over a synchronous callback because the project doubles as a Go-concurrency
-exercise; the stream's lifecycle (producer closes the channel exactly once, consumer
-selects on `ctx.Done()`) is treated as an explicit contract.
+`internal/agent` runs the loop itself with `Agent.Run(ctx, input)`. It reports progress
+to whatever UI is attached by writing typed `Event`s onto a channel. We picked a channel
+over a synchronous callback because the project doubles as a Go-concurrency exercise.
+The stream's lifecycle is a contract: the producer closes the channel exactly once, and
+the consumer selects on `ctx.Done()`.
 
 ## Consequences
 
-- Every UI surface shares one implementation of the loop instead of re-implementing it,
-  and the loop lives in the core where we can read it.
-- Sync observer callback was rejected — simpler and goroutine-free, but it forfeits the
-  concurrency lesson the user wants.
-- UI-driven loop (the current code) was rejected — it duplicates the loop per surface.
+- Every UI surface shares one loop implementation instead of re-implementing it.
+- The loop lives in the core, where we can read it.
+- Rejected: a synchronous observer callback. It is simpler and goroutine-free, but it
+  forfeits the concurrency lesson the user wants.
+- Rejected: a UI-driven loop (the current code). It duplicates the loop per surface.
