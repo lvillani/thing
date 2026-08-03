@@ -279,15 +279,16 @@ func parseSkillCommand(input string) (name, task string, ok bool) {
 
 // resolveInput turns submitted input into the string that will actually be sent to
 // the model. For a "/skill:<name> task" command it asks the core to activate the
-// skill and returns the resolved pointer (an error if the skill is unknown); any
-// other input passes through unchanged. The raw input is what gets echoed to the
+// skill and returns the resolved pointer (an error if the skill is unknown).
+// Otherwise it strips the leading "@" from file references (see stripMentions) and
+// passes the rest through unchanged. The raw input is what gets echoed to the
 // scrollback and stored in history; only this resolved string reaches the model.
 func (m Model) resolveInput(input string) (string, error) {
 	name, task, isCmd := parseSkillCommand(input)
-	if !isCmd || m.agent == nil {
-		return input, nil
+	if isCmd && m.agent != nil {
+		return m.agent.ActivateSkill(name, task)
 	}
-	return m.agent.ActivateSkill(name, task)
+	return stripMentions(input), nil
 }
 
 // navigateHistory moves through prior inputs on arrow up/down (readline-like).
