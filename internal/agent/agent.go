@@ -156,7 +156,7 @@ func (a *Agent) run(ctx context.Context, userInput string, events chan<- Event) 
 			return
 		}
 		for _, toolCall := range msg.ToolCalls {
-			if !a.emit(ctx, events, Event{Kind: KindToolCall, Tool: toolCall.Function.Name}) {
+			if !a.emit(ctx, events, Event{Kind: KindToolCall, Tool: toolCall.Function.Name, ToolInput: toolCall.Function.Arguments}) {
 				return
 			}
 			result, err := a.Tools.Run(toolCall.Function.Name, toolCall.Function.Arguments)

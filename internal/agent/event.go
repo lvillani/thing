@@ -28,6 +28,9 @@ type Event struct {
 	Message string
 	// Tool names the tool for KindToolCall and KindToolResult.
 	Tool string
+	// ToolInput carries the raw arguments passed to the tool (e.g. the bash command),
+	// populated on KindToolCall so the UI can display what actually ran.
+	ToolInput string
 	// Live context usage of the most recent response, populated on KindFinal.
 	PromptTokens     int
 	CompletionTokens int

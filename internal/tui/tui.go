@@ -148,14 +148,37 @@ func renderEvent(ev agent.Event) []string {
 	case agent.KindFinal:
 		return labeled("Agent", agentStyle, ev.Message)
 	case agent.KindToolCall:
-		return []string{toolStyle.Render("  ↳ " + ev.Tool)}
+		return []string{toolStyle.Render("  ↳ " + ev.Tool + " " + ev.ToolInput)}
 	case agent.KindToolResult:
-		return []string{toolStyle.Render("  " + ev.Message)}
+		return []string{toolStyle.Render("  " + tailLines(ev.Message, 3))}
 	case agent.KindError:
 		return []string{errorStyle.Render("error: " + ev.Message)}
 	default:
 		return nil
 	}
+}
+
+// tailLines keeps the last n non-empty lines of s. It is used so a tool's full output
+// (already fed back to the model in the conversation) does not spam the scrollback.
+func tailLines(s string, n int) string {
+	lines := strings.Split(s, "\n")
+	kept := make([]string, 0, n)
+	for _, l := range lines {
+		if strings.TrimSpace(l) == "" {
+			continue
+		}
+		kept = append(kept, l)
+		if len(kept) > n {
+			kept = kept[1:]
+		}
+	}
+	if len(kept) == 0 {
+		return ""
+	}
+	if len(kept) < n {
+		return strings.Join(kept, "\n")
+	}
+	return "… (truncated)\n" + strings.Join(kept, "\n")
 }
 
 // renderUser turns a submitted input into the echo lines printed into scrollback.
