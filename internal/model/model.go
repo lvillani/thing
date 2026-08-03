@@ -4,6 +4,11 @@
 // part, a subset of the OpenAPI Chat Completion API data model.
 package model
 
+import (
+	"crypto/rand"
+	"fmt"
+)
+
 // MessageRole represents the role of a message in a chat conversation.
 type MessageRole string
 
@@ -21,12 +26,31 @@ const (
 	ToolTypeFunction ToolType = "function" // A function tool that can be called by the model to generate a response.
 )
 
-// Chat represents a chat conversation with a model, including the messages exchanged
-// and any tools used.
+// Chat represents a chat conversation with a model, including the messages exchanged,
+// any tools used, and a session identifier. SessionID is transported in the request
+// body (not a header, unlike the removed X-Session-Id) because providers such as
+// OpenRouter accept it as model metadata; keeping it on Chat means it serializes with
+// the conversation and so is restored naturally by future history save/reload.
 type Chat struct {
-	Model    string    `json:"model"`
-	Tools    []Tool    `json:"tools"`
-	Messages []Message `json:"messages"`
+	Model     string    `json:"model"`
+	SessionID string    `json:"session_id,omitempty"`
+	Tools     []Tool    `json:"tools"`
+	Messages  []Message `json:"messages"`
+}
+
+// NewSessionID returns a random UUIDv4 used to identify a conversation. It needs no
+// shared state across requests, just enough entropy that sessions cannot collide. The
+// system CSPRNG is not expected to fail on supported platforms, so an error is
+// unrecoverable — panic rather than silently hand out a colliding ID.
+func NewSessionID() string {
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		panic(fmt.Sprintf("model: generate session id: %v", err))
+	}
+	// RFC 4122 version 4 and variant bits.
+	b[6] = (b[6] & 0x0f) | 0x40
+	b[8] = (b[8] & 0x3f) | 0x80
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
 }
 
 // Tool represents a function tool that can be used to generate a response.

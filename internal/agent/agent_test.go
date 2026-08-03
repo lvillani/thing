@@ -598,3 +598,13 @@ func containsName(cat []skills.Skill, name string) bool {
 	}
 	return false
 }
+
+// TestNewAgentSeedsSessionIDOnChat verifies a fresh conversation starts with a
+// non-empty session id carried on the Chat (as serialized body metadata), so it can be
+// restored by future history save/reload.
+func TestNewAgentSeedsSessionIDOnChat(t *testing.T) {
+	a := NewAgent(&errModel{err: errors.New("never called")}, "fake-model")
+	if a.Chat.SessionID == "" {
+		t.Fatal("NewAgent did not seed a session id on the conversation")
+	}
+}

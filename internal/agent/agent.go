@@ -87,9 +87,10 @@ func NewAgent(m Model, modelName string, reg ...*skills.Registry) *Agent {
 		Model:  m,
 		skills: registry,
 		Chat: model.Chat{
-			Model:    modelName,
-			Messages: []model.Message{{Role: model.MessageRoleDeveloper, Content: prompt}},
-			Tools:    toolRegistry.Tools(),
+			Model:     modelName,
+			SessionID: model.NewSessionID(),
+			Messages:  []model.Message{{Role: model.MessageRoleDeveloper, Content: prompt}},
+			Tools:     toolRegistry.Tools(),
 		},
 	}
 }
