@@ -26,6 +26,27 @@ resources on demand.
 startup — each Skill's `name` and `description` (and optionally `location`) — so the
 model knows what it can load without paying for full instruction bodies up front.
 
+**Skill invocation**: The trigger that decides a Skill should be loaded — either the
+model acting on the catalog (model-driven invocation) or the user issuing a command
+(user-explicit invocation). Distinct from activation: invocation is the decision,
+activation is the loading. _Avoid_: activating a skill when you mean invoking it
+
+**Skill activation**: The tier-2 operation that delivers a Skill's full instructions
+into the conversation context — resolving the Skill by name, reading/injecting its
+`SKILL.md`, and nudging the model to follow it. In this harness activation currently
+injects a pointer message rather than the body, because the model already has a `bash`
+tool that can read `SKILL.md`. A Skill's `disable-model-invocation` frontmatter field
+creates Skills that can only be activated via user-explicit invocation.
+
+**Model-driven invocation**: Skill invocation triggered by the model reading the
+catalog and deciding a Skill is relevant, then activating it (e.g. via `bash`).
+Opposed to user-explicit invocation.
+
+**User-explicit invocation**: Skill invocation triggered by the user, not the model —
+a `/skill:<name>` style command the harness intercepts, resolves, and activates
+directly. The path that keeps a Skill usable when `disable-model-invocation` hides it
+from the catalog.
+
 **Transport boundary**: The edge of the program where the transport lives: the endpoint,
 the `http.Client`, and the request/response marshalling. It implements the core's
 `Model` interface, so the core never touches HTTP. The OpenAI-compatible Chat
