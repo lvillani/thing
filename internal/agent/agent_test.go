@@ -544,3 +544,57 @@ func TestSkillsAccessorNoRegistry(t *testing.T) {
 		t.Errorf("Skills() = %+v, want empty with no registry", cat)
 	}
 }
+
+func TestNewAgent_HidesDisabledSkillFromSystemPrompt(t *testing.T) {
+	visRoot := t.TempDir()
+	hidRoot := t.TempDir()
+	writeSkillAt(t, visRoot, "visible", "model may load", false)
+	writeSkillAt(t, hidRoot, "hidden", "user only", true)
+
+	combined, err := skills.New(visRoot, hidRoot)
+	if err != nil {
+		t.Fatalf("skills.New: %v", err)
+	}
+
+	a := NewAgent(&errModel{err: errors.New("never called")}, "m", combined)
+	dev := a.Chat.Messages[0].Content
+
+	if !strings.Contains(dev, "visible") || !strings.Contains(dev, "model may load") {
+		t.Errorf("visible skill missing from system prompt: %q", dev)
+	}
+	if strings.Contains(dev, "hidden") || strings.Contains(dev, "user only") {
+		t.Errorf("disabled skill leaked into system prompt: %q", dev)
+	}
+	if !containsName(a.Skills(), "hidden") {
+		t.Errorf("disabled skill missing from Skills() autocomplete catalog: %+v", a.Skills())
+	}
+	if !containsName(a.Skills(), "visible") {
+		t.Errorf("visible skill missing from Skills(): %+v", a.Skills())
+	}
+}
+
+func writeSkillAt(t *testing.T, root, name, desc string, disabled bool) string {
+	t.Helper()
+	dir := filepath.Join(root, name)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	flag := ""
+	if disabled {
+		flag = "disable-model-invocation: true\n"
+	}
+	content := "---\nname: " + name + "\ndescription: " + desc + "\n" + flag + "---\nbody\n"
+	if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return filepath.Join(dir, "SKILL.md")
+}
+
+func containsName(cat []skills.Skill, name string) bool {
+	for _, s := range cat {
+		if s.Name == name {
+			return true
+		}
+	}
+	return false
+}

@@ -20,6 +20,11 @@ type Skill struct {
 	Name        string
 	Description string
 	Location    string
+	// DisableModelInvocation, when true, hides the skill from the catalog presented
+	// to the model for model-driven invocation. The skill is still resolvable by
+	// name (Get) and visible in the full Catalog, so user-explicit invocation can
+	// still reach it.
+	DisableModelInvocation bool
 }
 
 // Registry holds the skills discovered from one or more skill roots.
@@ -71,7 +76,7 @@ func (r *Registry) load(md string) error {
 	if err != nil {
 		return err
 	}
-	name, desc, ok := parseFrontmatter(string(data))
+	name, desc, disableMD, ok := parseFrontmatter(string(data))
 	if !ok {
 		return errors.New("missing or unparseable frontmatter")
 	}
@@ -87,7 +92,12 @@ func (r *Registry) load(md string) error {
 	if strings.Contains(desc, ":") {
 		log.Printf("skills: %s: description for %q may contain an unquoted colon (subtly malformed YAML); loading anyway", md, name)
 	}
-	r.byName[name] = Skill{Name: name, Description: desc, Location: md}
+	r.byName[name] = Skill{
+		Name:                   name,
+		Description:            desc,
+		Location:               md,
+		DisableModelInvocation: disableMD,
+	}
 	return nil
 }
 
@@ -99,11 +109,27 @@ func (r *Registry) Get(name string) (Skill, bool) {
 	return skill, ok
 }
 
-// Catalog returns the discovered skills, sorted by name for determinism.
+// Catalog returns the discovered skills, sorted by name for determinism. It includes
+// every discovered skill regardless of DisableModelInvocation: it is the full set a
+// user-explicit invoker can reach. Use ModelCatalog for the set shown to the model.
 func (r *Registry) Catalog() []Skill {
+	return r.catalog(func(Skill) bool { return true })
+}
+
+// ModelCatalog returns the skills usable for model-driven invocation — i.e. the
+// catalog excluding those with DisableModelInvocation set. Skills hidden here are
+// still discoverable via Catalog and Get, so user-explicit invocation keeps working.
+func (r *Registry) ModelCatalog() []Skill {
+	return r.catalog(func(s Skill) bool { return !s.DisableModelInvocation })
+}
+
+// catalog returns the discovered skills matching the predicate, sorted by name.
+func (r *Registry) catalog(keep func(Skill) bool) []Skill {
 	names := make([]string, 0, len(r.byName))
-	for name := range r.byName {
-		names = append(names, name)
+	for name, s := range r.byName {
+		if keep(s) {
+			names = append(names, name)
+		}
 	}
 	sort.Strings(names)
 	out := make([]Skill, 0, len(names))
@@ -113,24 +139,25 @@ func (r *Registry) Catalog() []Skill {
 	return out
 }
 
-// parseFrontmatter extracts the name and description fields from a SKILL.md's YAML
-// frontmatter block. It is deliberately lenient: it only needs the two scalar keys and
-// tolerates unquoted values containing colons, which strict YAML would reject.
-func parseFrontmatter(content string) (name, desc string, ok bool) {
+// parseFrontmatter extracts the name, description and disable-model-invocation fields
+// from a SKILL.md's YAML frontmatter block. It is deliberately lenient: it only needs
+// the scalar keys and tolerates unquoted values containing colons, which strict YAML
+// would reject.
+func parseFrontmatter(content string) (name, desc string, disableMD bool, ok bool) {
 	// Must start with a standalone `---` line.
 	if content != "---" && !strings.HasPrefix(content, "---\n") {
-		return "", "", false
+		return "", "", false, false
 	}
 	rest := content[3:]
 	nl := strings.IndexByte(rest, '\n')
 	if nl < 0 {
-		return "", "", false
+		return "", "", false, false
 	}
 	rest = rest[nl+1:]
 
 	end := closingDelim(rest)
 	if end < 0 {
-		return "", "", false
+		return "", "", false, false
 	}
 	for _, line := range strings.Split(rest[:end], "\n") {
 		line = strings.TrimSpace(line)
@@ -148,9 +175,22 @@ func parseFrontmatter(content string) (name, desc string, ok bool) {
 			name = stripQuotes(val)
 		case "description":
 			desc = stripQuotes(val)
+		case "disable-model-invocation":
+			disableMD = parseBool(val)
 		}
 	}
-	return name, desc, name != ""
+	return name, desc, disableMD, name != ""
+}
+
+// parseBool leniently parses a YAML boolean. It returns false for the default/empty
+// value, so an absent disable-model-invocation key never flips the flag.
+func parseBool(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "true", "yes", "y", "on", "1":
+		return true
+	default:
+		return false
+	}
 }
 
 // closingDelim returns the index of the first line exactly equal to `---`, or -1. It

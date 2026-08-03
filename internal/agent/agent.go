@@ -74,7 +74,10 @@ func NewAgent(m Model, modelName string, reg ...*skills.Registry) *Agent {
 		registry = reg[0]
 	}
 	if registry != nil {
-		if cat := registry.Catalog(); len(cat) > 0 {
+		// Model-driven invocation only sees skills that haven't disabled it; the
+		// full catalog (including disabled ones) is still reachable via Skills()
+		// for user-explicit invocation.
+		if cat := registry.ModelCatalog(); len(cat) > 0 {
 			prompt = promptWithCatalog(prompt, cat)
 		}
 	}

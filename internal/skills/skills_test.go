@@ -146,3 +146,58 @@ func TestNew_MissingRootIsNotAnError(t *testing.T) {
 		t.Errorf("catalog = %+v, want empty", reg.Catalog())
 	}
 }
+
+func TestModelCatalogExcludesDisabledSkills(t *testing.T) {
+	root := t.TempDir()
+	writeSkill(t, root, "visible", "---\nname: visible\ndescription: model may load\n---\nbody\n")
+	writeSkill(t, root, "hidden", "---\nname: hidden\ndescription: user only\ndisable-model-invocation: true\n---\nbody\n")
+
+	reg, err := New(root)
+	if err != nil {
+		t.Fatalf("New returned error: %v", err)
+	}
+
+	full := reg.Catalog()
+	if len(full) != 2 {
+		t.Fatalf("full catalog has %d skills, want 2 (disabled ones are still discoverable): %+v", len(full), full)
+	}
+
+	model := reg.ModelCatalog()
+	if len(model) != 1 || model[0].Name != "visible" {
+		t.Errorf("ModelCatalog = %+v, want only visible", model)
+	}
+
+	// The disabled skill must still be resolvable by Get for user-explicit invocation.
+	if sk, ok := reg.Get("hidden"); !ok || !sk.DisableModelInvocation {
+		t.Errorf("Get(hidden) = %+v, %v; want present with flag set", sk, ok)
+	}
+}
+
+func TestParseDisabledModelInvocationVariants(t *testing.T) {
+	cases := []struct {
+		val  string
+		want bool
+	}{
+		{val: "true", want: true},
+		{val: "True", want: true},
+		{val: "yes", want: true},
+		{val: "on", want: true},
+		{val: "1", want: true},
+		{val: "false", want: false},
+		{val: "", want: false},
+		{val: "banana", want: false},
+	}
+	for _, c := range cases {
+		_, _, got, _ := parseFrontmatter("---\nname: x\ndescription: d\ndisable-model-invocation: " + c.val + "\n---\n")
+		if got != c.want {
+			t.Errorf("parseFrontmatter(disable-model-invocation: %q) = %v, want %v", c.val, got, c.want)
+		}
+	}
+}
+
+func TestAbsentDisableModelInvocationDefaultsFalse(t *testing.T) {
+	_, _, disable, ok := parseFrontmatter("---\nname: x\ndescription: d\n---\n")
+	if !ok || disable {
+		t.Errorf("absent flag: disable=%v ok=%v, want false/true", disable, ok)
+	}
+}
