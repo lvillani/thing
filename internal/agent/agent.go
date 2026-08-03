@@ -39,9 +39,10 @@ type Model interface {
 
 // Agent represents an agent. It holds the conversation state.
 type Agent struct {
-	Tools *tools.ToolRegistry
-	Model Model
-	Chat  model.Chat
+	Tools  *tools.ToolRegistry
+	Model  Model
+	Chat   model.Chat
+	skills *skills.Registry // retained so run can resolve /skill:<name> activation
 
 	usageMu sync.RWMutex
 	usage   Usage
@@ -65,15 +66,23 @@ type Usage struct {
 func NewAgent(m Model, modelName string, reg ...*skills.Registry) *Agent {
 	toolRegistry := tools.NewToolRegistry()
 	prompt := systemPromptWithCwd()
-	if len(reg) > 0 && reg[0] != nil {
-		if cat := reg[0].Catalog(); len(cat) > 0 {
+
+	// The registry is retained (not just used to seed the catalog) so run can
+	// resolve /skill:<name> manual activation at request time.
+	var registry *skills.Registry
+	if len(reg) > 0 {
+		registry = reg[0]
+	}
+	if registry != nil {
+		if cat := registry.Catalog(); len(cat) > 0 {
 			prompt = promptWithCatalog(prompt, cat)
 		}
 	}
 
 	return &Agent{
-		Tools: toolRegistry,
-		Model: m,
+		Tools:  toolRegistry,
+		Model:  m,
+		skills: registry,
 		Chat: model.Chat{
 			Model:    modelName,
 			Messages: []model.Message{{Role: model.MessageRoleDeveloper, Content: prompt}},
@@ -214,4 +223,39 @@ func (a *Agent) Usage() Usage {
 	a.usageMu.RLock()
 	defer a.usageMu.RUnlock()
 	return a.usage
+}
+
+// ActivateSkill is the core-side activation operation for user-explicit skill
+// invocation. It resolves name against the skill registry and returns a short
+// pointer string nudging the model to read that skill's SKILL.md, then passes the
+// remaining task through. It never decides whether input is a command — parsing the
+// "/skill:" syntax is the interaction surface's job. It returns a non-nil error when
+// no skill by that name is in the registry (in which case no pointer is produced and
+// the caller should not start a run).
+func (a *Agent) ActivateSkill(name, task string) (string, error) {
+	if a.skills == nil {
+		return "", fmt.Errorf("no skills available to activate")
+	}
+	skill, found := a.skills.Get(name)
+	if !found {
+		return "", fmt.Errorf("unknown skill %q", name)
+	}
+	if task == "" {
+		return fmt.Sprintf(
+			"The user has manually activated the skill %q. Read its instructions at %s and follow them.",
+			skill.Name, skill.Location), nil
+	}
+	return fmt.Sprintf(
+		"The user has manually activated the skill %q. Read its instructions at %s to follow them, then help with: %s",
+		skill.Name, skill.Location, task), nil
+}
+
+// Skills returns the already-discovered skill catalog (name + description) for the
+// UI to filter and render. It is a read-only accessor so the TUI never re-discovers
+// skills from disk or leaks the registry type.
+func (a *Agent) Skills() []skills.Skill {
+	if a.skills == nil {
+		return nil
+	}
+	return a.skills.Catalog()
 }

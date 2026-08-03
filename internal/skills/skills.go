@@ -91,6 +91,14 @@ func (r *Registry) load(md string) error {
 	return nil
 }
 
+// Get returns the skill with the given name, or ok=false if it is not discovered.
+// It is used by manual activation (/skill:<name>), which must resolve a skill by
+// name at request time even when the skill is not advertised in the system prompt.
+func (r *Registry) Get(name string) (Skill, bool) {
+	skill, ok := r.byName[name]
+	return skill, ok
+}
+
 // Catalog returns the discovered skills, sorted by name for determinism.
 func (r *Registry) Catalog() []Skill {
 	names := make([]string, 0, len(r.byName))

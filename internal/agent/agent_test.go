@@ -379,9 +379,9 @@ func (g *growingContextModel) Complete(_ context.Context, chat model.Chat) (*mod
 			Message model.Message `json:"message"`
 		}{{Message: msg}},
 		Usage: &model.ResponseUsage{
-			PromptTokens:     prompt,
-			CompletionTokens: 4,
-			TotalTokens:      prompt + 4,
+			PromptTokens:        prompt,
+			CompletionTokens:    4,
+			TotalTokens:         prompt + 4,
 			PromptTokensDetails: &model.ResponseUsageDetails{CachedTokens: prompt / 2},
 		},
 	}, nil
@@ -420,5 +420,127 @@ func TestRun_UsageTracksLiveContextNotAccumulatedThroughput(t *testing.T) {
 	if final.PromptTokens != 3000 || final.CompletionTokens != 4 || final.CachedTokens != 1500 {
 		t.Errorf("final event usage = in %d/out %d/cached %d, want 3000/4/1500",
 			final.PromptTokens, final.CompletionTokens, final.CachedTokens)
+	}
+}
+
+// recordingModel records the user message the agent sent so activation can be
+// asserted, then returns a single final response.
+type recordingModel struct {
+	gotUser string
+}
+
+func (f *recordingModel) Complete(_ context.Context, chat model.Chat) (*model.Response, error) {
+	for _, m := range chat.Messages {
+		if m.Role == model.MessageRoleUser {
+			f.gotUser = m.Content
+		}
+	}
+	return &model.Response{
+		Choices: []struct {
+			Message model.Message `json:"message"`
+		}{{Message: model.Message{Role: model.MessageRoleAssistant, Content: "done"}}},
+	}, nil
+}
+
+func newSkillReg(t *testing.T, dir, content string) *skills.Registry {
+	t.Helper()
+	root := t.TempDir()
+	path := filepath.Join(root, dir, "SKILL.md")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	reg, err := skills.New(root)
+	if err != nil {
+		t.Fatalf("skills.New: %v", err)
+	}
+	return reg
+}
+
+func TestActivateSkillNudgesModel(t *testing.T) {
+	content := "---\nname: git\n description: follow repo conventions\n---\nbody\n"
+	reg := newSkillReg(t, "git", content)
+	skill, _ := reg.Get("git")
+
+	m := &recordingModel{}
+	a := NewAgent(m, "fake-model", reg)
+	pointer, err := a.ActivateSkill("git", "make a commit")
+	if err != nil {
+		t.Fatalf("ActivateSkill: %v", err)
+	}
+	if !strings.Contains(pointer, skill.Name) {
+		t.Errorf("pointer lacks skill name: %q", pointer)
+	}
+	if !strings.Contains(pointer, skill.Location) {
+		t.Errorf("pointer lacks skill location %q: %q", skill.Location, pointer)
+	}
+	if !strings.Contains(pointer, "make a commit") {
+		t.Errorf("pointer lost the trailing task: %q", pointer)
+	}
+}
+
+func TestActivateSkillWithoutTask(t *testing.T) {
+	reg := newSkillReg(t, "git", "---\nname: git\ndescription: x\n---\n")
+	skill, _ := reg.Get("git")
+
+	m := &recordingModel{}
+	a := NewAgent(m, "fake-model", reg)
+	pointer, err := a.ActivateSkill("git", "")
+	if err != nil {
+		t.Fatalf("ActivateSkill: %v", err)
+	}
+	if !strings.Contains(pointer, skill.Name) || !strings.Contains(pointer, skill.Location) {
+		t.Errorf("pointer incomplete: %q", pointer)
+	}
+}
+
+func TestActivateSkillUnknownName(t *testing.T) {
+	m := &recordingModel{}
+	a := NewAgent(m, "fake-model", newSkillReg(t, "git", "---\nname: git\ndescription: x\n---\n"))
+	_, err := a.ActivateSkill("does-not-exist", "")
+	if err == nil {
+		t.Fatal("expected error for unknown skill")
+	}
+	if !strings.Contains(err.Error(), "does-not-exist") {
+		t.Errorf("error should name the skill: %v", err)
+	}
+}
+
+func TestActivateSkillNoRegistry(t *testing.T) {
+	m := &recordingModel{}
+	a := NewAgent(m, "fake-model")
+	_, err := a.ActivateSkill("git", "")
+	if err == nil {
+		t.Fatal("expected error when no registry")
+	}
+}
+
+func TestRun_NormalInputPassesThroughUnchanged(t *testing.T) {
+	m := &recordingModel{}
+	a := NewAgent(m, "fake-model", newSkillReg(t, "git", "---\nname: git\ndescription: x\n---\n"))
+	// A "/skill:" command is passed through to Run unchanged: parsing is the TUI's
+	// job, the core's Run should never see it as a resolved pointer.
+	collect(t, a.Run(context.Background(), "/skill:git make a commit"))
+	if m.gotUser != "/skill:git make a commit" {
+		t.Errorf("Run should pass command through unchanged, got %q", m.gotUser)
+	}
+}
+
+func TestSkillsAccessor(t *testing.T) {
+	m := &recordingModel{}
+	a := NewAgent(m, "fake-model", newSkillReg(t, "git", "---\nname: git\ndescription: do git things\n---\n"))
+	cat := a.Skills()
+	if len(cat) != 1 || cat[0].Name != "git" || cat[0].Description != "do git things" {
+		t.Errorf("Skills() = %+v, want single git skill", cat)
+	}
+}
+
+func TestSkillsAccessorNoRegistry(t *testing.T) {
+	m := &recordingModel{}
+	a := NewAgent(m, "fake-model")
+	if cat := a.Skills(); len(cat) != 0 {
+		t.Errorf("Skills() = %+v, want empty with no registry", cat)
 	}
 }
