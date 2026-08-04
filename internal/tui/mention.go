@@ -7,18 +7,11 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-
-	"charm.land/lipgloss/v2"
 )
 
 const (
 	// mentionMaxRows caps how tall the inline suggestion list can grow.
 	mentionMaxRows = 10
-)
-
-var (
-	mentionCursorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("212"))
-	mentionDirStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("36"))
 )
 
 // mention holds the transient state for an active "@..." file-reference popup. It
@@ -175,7 +168,7 @@ func fuzzyScore(name, query string) (int, bool) {
 func (m Model) renderMention() string {
 	matches := m.mentionMatches()
 	if len(matches) == 0 {
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("247")).Render("  no matches")
+		return mentionMutedStyle.Render("  no matches")
 	}
 	sel := m.mention.selected
 	if sel >= len(matches) {

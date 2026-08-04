@@ -6,8 +6,6 @@ import (
 	"sort"
 	"strings"
 
-	"charm.land/lipgloss/v2"
-
 	"thing/internal/skills"
 )
 
@@ -15,8 +13,6 @@ const (
 	// skillMaxRows caps how tall the inline skill popup can grow.
 	skillMaxRows = mentionMaxRows
 )
-
-var skillCursorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("212"))
 
 // skillPopup holds the transient state for an active "/skill:" autocomplete popup.
 // It is a separate, parallel state machine from the file-mention popup (Option B of
@@ -121,7 +117,7 @@ func (m Model) skillMatches() []skills.Skill {
 func (m Model) renderSkill() string {
 	matches := m.skillMatches()
 	if len(matches) == 0 {
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("247")).Render("  no matching skills")
+		return skillMutedStyle.Render("  no matching skills")
 	}
 	sel := m.skill.selected
 	if sel >= len(matches) {
@@ -137,13 +133,12 @@ func (m Model) renderSkill() string {
 		}
 	}
 
-	descStyle := lipgloss.NewStyle().Faint(true)
 	var rows []string
 	for i := start; i < end; i++ {
 		name := matches[i].Name
 		row := "  " + name
 		if matches[i].Description != "" {
-			row += " — " + descStyle.Render(matches[i].Description)
+			row += " — " + skillDescStyle.Render(matches[i].Description)
 		}
 		if i == sel {
 			rows = append(rows, skillCursorStyle.Render("> "+name+" — "+matches[i].Description))

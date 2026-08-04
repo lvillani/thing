@@ -13,24 +13,15 @@ import (
 	"fmt"
 	"strings"
 
-	"charm.land/glamour/v2"
 	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/spinner"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
+	"charm.land/glamour/v2"
 	"charm.land/lipgloss/v2"
 
 	"thing/internal/agent"
-)
-
-var (
-	titleStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("213"))
-	youStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("39"))
-	agentStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("212"))
-	toolStyle  = lipgloss.NewStyle().Faint(true)
-	errorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
-	usageStyle = lipgloss.NewStyle().Faint(true)
 )
 
 // runFinishedMsg reports that the run with the given id has ended (normally or by
