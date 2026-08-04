@@ -426,7 +426,8 @@ func (m Model) View() tea.View {
 // the context-summary line.
 func (m *Model) usageSummary() string {
 	u := m.agent.Usage()
-	return fmt.Sprintf("─ ctx: %d in / %d out  cache: %.1f%% (%d/%d)",
+	return fmt.Sprintf("─ messages: %d  ctx: %d in / %d out  cache: %.1f%% (%d/%d)",
+		len(m.agent.Chat.Messages),
 		u.PromptTokens,
 		u.CompletionTokens,
 		u.CachedTokensRatio*100,
