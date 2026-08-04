@@ -12,18 +12,18 @@ var (
 	// Scrollback / chat-output styles.
 	titleStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("208"))
 	youStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("39"))
-	agentStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("212"))
+	agentStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("208"))
 	toolStyle  = lipgloss.NewStyle().Faint(true)
 	errorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
 	usageStyle = lipgloss.NewStyle().Faint(true)
 
 	// File-mention popup styles.
-	mentionCursorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("212"))
+	mentionCursorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("208"))
 	mentionDirStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("36"))
 	mentionMutedStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("247"))
 
 	// Skill popup styles.
-	skillCursorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("212"))
+	skillCursorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("208"))
 	skillDescStyle   = lipgloss.NewStyle().Faint(true)
 	skillMutedStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("247"))
 )
