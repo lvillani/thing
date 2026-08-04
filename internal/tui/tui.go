@@ -14,12 +14,12 @@ import (
 	"strings"
 
 	"charm.land/glamour/v2"
-	"github.com/charmbracelet/bubbles/help"
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/help"
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"thing/internal/agent"
 )
@@ -327,8 +327,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
-		m.input.Width = msg.Width - 2
-		m.help.Width = msg.Width
+		m.input.SetWidth(msg.Width - 2)
+		m.help.SetWidth(msg.Width)
 		return m, nil
 
 	case runFinishedMsg:
@@ -343,7 +343,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.spinner, cmd = m.spinner.Update(msg)
 		return m, cmd
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		// A popup (file-mention or skill) is active: arrows move the selection,
 		// Tab/Enter commit, Esc closes. All other keys edit the input and re-sync
 		// the popups. The two popups are parallel state machines and mutually
@@ -410,7 +410,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // View renders only the fixed footer pinned at the bottom of the terminal: spinner
 // (when working), context summary, input, and help. Chat content is not part of the
 // frame; it is printed into the terminal scrollback by handleEnter's goroutine.
-func (m Model) View() string {
+func (m Model) View() tea.View {
 	var parts []string
 	if m.running {
 		parts = append(parts, m.spinner.View()+" working…")
@@ -428,7 +428,7 @@ func (m Model) View() string {
 	}
 	parts = append(parts, m.input.View())
 	parts = append(parts, m.help.ShortHelpView(m.helpBindings()))
-	return strings.Join(parts, "\n")
+	return tea.NewView(strings.Join(parts, "\n"))
 }
 
 // usageSummary reports the live context usage of the most recent model response for

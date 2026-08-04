@@ -5,7 +5,7 @@ package tui
 import (
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 // TestUpdateOpensMentionOnAtKey ensures that typing '@' through Update opens the
@@ -14,7 +14,7 @@ func TestUpdateOpensMentionOnAtKey(t *testing.T) {
 	m := newTestModel()
 	m.input.SetValue("read ")
 
-	m2, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'@'}})
+	m2, _ := m.Update(tea.KeyPressMsg{Code: '@', Text: "@"})
 	next := m2.(Model)
 	m = &next
 	if !m.mention.open {
@@ -42,7 +42,7 @@ func TestUpdateCommitMentionViaEnter(t *testing.T) {
 	m.input.SetValue("@g") // query 'g' → matches go.mod
 	m.input.SetCursor(2)
 
-	m2, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m2, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	next := m2.(Model)
 	m = &next
 	if cmd != nil {
@@ -65,7 +65,7 @@ func TestUpdateMentionEscCloses(t *testing.T) {
 	m.input.SetValue("@")
 	m.input.SetCursor(1)
 
-	m2, _ := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m2, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 	next := m2.(Model)
 	m = &next
 	if m.mention.open {
