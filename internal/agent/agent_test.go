@@ -108,7 +108,7 @@ func TestRun_StraightFinal(t *testing.T) {
 	}}}
 
 	a := NewAgent(f, "fake-model")
-	evs := collect(t, a.Run(context.Background(), "hi"))
+	evs := collect(t, a.Run(context.Background(), model.NewUserMessage("hi")))
 
 	if len(evs) != 1 || evs[0].Kind != KindFinal || evs[0].Message != "hello there" {
 		t.Fatalf("events = %+v, want a single final 'hello there'", evs)
@@ -146,7 +146,7 @@ func TestRun_ToolRoundThenFinal(t *testing.T) {
 	a := NewAgent(f, "fake-model")
 	a.Tools.Register(&fakeTool{out: "echoed"})
 
-	evs := collect(t, a.Run(context.Background(), "please echo"))
+	evs := collect(t, a.Run(context.Background(), model.NewUserMessage("please echo")))
 
 	want := []EventKind{KindToolCall, KindToolResult, KindFinal}
 	if len(evs) != len(want) {
@@ -185,7 +185,7 @@ func TestRun_ToolRoundThenFinal(t *testing.T) {
 
 func TestRun_ModelError(t *testing.T) {
 	a := NewAgent(&errModel{err: errors.New("boom")}, "fake-model")
-	evs := collect(t, a.Run(context.Background(), "hi"))
+	evs := collect(t, a.Run(context.Background(), model.NewUserMessage("hi")))
 
 	if len(evs) != 1 || evs[0].Kind != KindError || evs[0].Message != "boom" {
 		t.Fatalf("events = %+v, want a single error 'boom'", evs)
@@ -195,7 +195,7 @@ func TestRun_ModelError(t *testing.T) {
 func TestRun_CancellationStopsLoop(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	a := NewAgent(blockingModel{}, "fake-model")
-	ch := a.Run(ctx, "hi")
+	ch := a.Run(ctx, model.NewUserMessage("hi"))
 
 	// Cancel while the producer is (or soon will be) blocked inside Complete.
 	cancel()
@@ -223,7 +223,7 @@ func TestRun_AssistantPrecedesToolCall(t *testing.T) {
 
 	a := NewAgent(f, "fake-model")
 	a.Tools.Register(&fakeTool{out: "echoed"})
-	evs := collect(t, a.Run(context.Background(), "please check"))
+	evs := collect(t, a.Run(context.Background(), model.NewUserMessage("please check")))
 
 	want := []struct {
 		kind EventKind
@@ -312,7 +312,7 @@ func TestRun_ToolErrorFeedsBackToModel(t *testing.T) {
 	a := NewAgent(f, "fake-model")
 	a.Tools.Register(&errTool{})
 
-	evs := collect(t, a.Run(context.Background(), "trigger a failure"))
+	evs := collect(t, a.Run(context.Background(), model.NewUserMessage("trigger a failure")))
 
 	want := []EventKind{KindToolCall, KindToolResult, KindFinal}
 	if len(evs) != len(want) {
@@ -402,7 +402,7 @@ func TestRun_UsageTracksLiveContextNotAccumulatedThroughput(t *testing.T) {
 	a := NewAgent(g, "fake-model")
 	a.Tools.Register(&fakeTool{out: "echoed"})
 
-	evs := collect(t, a.Run(context.Background(), "grow"))
+	evs := collect(t, a.Run(context.Background(), model.NewUserMessage("grow")))
 
 	if u := a.Usage(); u.PromptTokens != 3000 {
 		t.Errorf("PromptTokens = %d, want 3000 (live context of last request, not cumulative)", u.PromptTokens)
@@ -522,7 +522,7 @@ func TestRun_NormalInputPassesThroughUnchanged(t *testing.T) {
 	a := NewAgent(m, "fake-model", newSkillReg(t, "git", "---\nname: git\ndescription: x\n---\n"))
 	// A "/skill:" command is passed through to Run unchanged: parsing is the TUI's
 	// job, the core's Run should never see it as a resolved pointer.
-	collect(t, a.Run(context.Background(), "/skill:git make a commit"))
+	collect(t, a.Run(context.Background(), model.NewUserMessage("/skill:git make a commit")))
 	if m.gotUser != "/skill:git make a commit" {
 		t.Errorf("Run should pass command through unchanged, got %q", m.gotUser)
 	}

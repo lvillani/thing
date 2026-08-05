@@ -22,6 +22,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"thing/internal/agent"
+	"thing/internal/model"
 )
 
 // runFinishedMsg reports that the run with the given id has ended (normally or by
@@ -225,7 +226,7 @@ func (m Model) handleEnter() (Model, tea.Cmd) {
 	m.running = true
 
 	app := m.app
-	events := m.agent.Run(ctx, sent)
+	events := m.agent.Run(ctx, model.NewUserMessage(sent))
 	go func() {
 		// Echo the user's line, then print each event, as ordinary terminal output.
 		// Program.Println emits the line "above" the program: it persists in the

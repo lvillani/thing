@@ -41,7 +41,7 @@ func TestRace_UsageReadWhileRunInFlight(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	events := a.Run(ctx, "go")
+	events := a.Run(ctx, model.NewUserMessage("go"))
 	var wg sync.WaitGroup
 	stop := make(chan struct{})
 	wg.Add(1)

@@ -108,23 +108,23 @@ func promptWithCatalog(base string, cat []skills.Skill) string {
 	return b.String()
 }
 
-// Run drives the agent loop: it appends the user's message, then repeatedly calls the
-// model, runs any requested tools, and reports each step as an Event on the returned
-// channel. The channel is closed exactly once when the run finishes. Cancelling ctx
-// stops the loop and terminates the producer goroutine — even if the consumer stops
-// draining the channel; cancellation is observed as soon as the model transport or
-// event delivery returns to the loop.
-func (a *Agent) Run(ctx context.Context, userInput string) <-chan Event {
+// Run drives the agent loop: it appends a message, then repeatedly calls the model,
+// runs any requested tools, and reports each step as an Event on the returned channel.
+// The channel is closed exactly once when the run finishes. Cancelling ctx stops the
+// loop and terminates the producer goroutine — even if the consumer stops draining the
+// channel; cancellation is observed as soon as the model transport or event delivery
+// returns to the loop.
+func (a *Agent) Run(ctx context.Context, message *model.Message) <-chan Event {
 	events := make(chan Event)
 	go func() {
 		defer close(events)
-		a.run(ctx, userInput, events)
+		a.run(ctx, message, events)
 	}()
 	return events
 }
 
-func (a *Agent) run(ctx context.Context, userInput string, events chan<- Event) {
-	a.Chat.Messages = append(a.Chat.Messages, model.Message{Role: model.MessageRoleUser, Content: userInput})
+func (a *Agent) run(ctx context.Context, message *model.Message, events chan<- Event) {
+	a.Chat.Messages = append(a.Chat.Messages, *message)
 
 	for {
 		response, err := a.Model.Complete(ctx, a.Chat)

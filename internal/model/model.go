@@ -88,6 +88,12 @@ type Message struct {
 	ToolCallID string      `json:"tool_call_id,omitempty"`
 }
 
+// NewUserMessage creates a new Message instance with the role set to "user" and the
+// given content.
+func NewUserMessage(userInput string) *Message {
+	return &Message{Role: MessageRoleUser, Content: userInput}
+}
+
 // ToolCall represents a call to a function tool made by the model.
 type ToolCall struct {
 	ID       string `json:"id"`
