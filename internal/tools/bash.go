@@ -37,7 +37,7 @@ func (b *bash) Describe() model.Tool {
 }
 
 // Run executes the bash command provided in the input.
-func (b *bash) Run(input string) (string, error) {
+func (b *bash) Run(input model.ToolCallFunctionArguments) (string, error) {
 	var args struct {
 		Command string `json:"command"`
 	}

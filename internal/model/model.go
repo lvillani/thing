@@ -79,13 +79,18 @@ func NewUserMessage(userInput string) *Message {
 	return &Message{Role: MessageRoleUser, Content: userInput}
 }
 
+// ToolCallFunctionArguments represents the arguments passed to a function tool call
+// made by the model. This is typically a JSON object that conforms to the parameters
+// defined in the ToolFunctionDefinition.
+type ToolCallFunctionArguments string
+
 // ToolCall represents a call to a function tool made by the model.
 type ToolCall struct {
 	ID       string `json:"id"`
 	Type     string `json:"type"` // Should always be "function".
 	Function struct {
-		Name      string `json:"name"`
-		Arguments string `json:"arguments"` // Should be in JSON format.
+		Name      string                    `json:"name"`
+		Arguments ToolCallFunctionArguments `json:"arguments"` // Should be in JSON format.
 	} `json:"function"`
 }
 

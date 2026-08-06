@@ -2,6 +2,8 @@
 
 package agent
 
+import "thing/internal/model"
+
 // EventKind identifies the kind of progress an Event reports.
 type EventKind string
 
@@ -30,7 +32,7 @@ type Event struct {
 	Tool string
 	// ToolInput carries the raw arguments passed to the tool (e.g. the bash command),
 	// populated on KindToolCall so the UI can display what actually ran.
-	ToolInput string
+	ToolInput model.ToolCallFunctionArguments
 	// Live context usage of the most recent response, populated on KindFinal.
 	PromptTokens     int
 	CompletionTokens int

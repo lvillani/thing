@@ -140,7 +140,7 @@ func renderEvent(ev agent.Event) []string {
 	case agent.KindFinal:
 		return labeled("Agent", agentStyle, ev.Message)
 	case agent.KindToolCall:
-		return []string{toolStyle.Render("  ↳ " + ev.Tool + " " + ev.ToolInput), ""}
+		return []string{toolStyle.Render("  ↳ " + ev.Tool + " " + string(ev.ToolInput)), ""}
 	case agent.KindToolResult:
 		return []string{toolStyle.Render("  " + tailLines(ev.Message, 3)), ""}
 	case agent.KindError:

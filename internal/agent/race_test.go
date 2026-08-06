@@ -17,8 +17,8 @@ func (m *loopModel) Complete(_ context.Context, chat model.Chat) (*model.Respons
 	msg := model.Message{Role: model.MessageRoleAssistant, Content: "done", ToolCalls: []model.ToolCall{{
 		ID: "c", Type: "function",
 		Function: struct {
-			Name      string `json:"name"`
-			Arguments string `json:"arguments"`
+			Name      string                          `json:"name"`
+			Arguments model.ToolCallFunctionArguments `json:"arguments"`
 		}{Name: "echo", Arguments: `{}`},
 	}}}
 	if m.n <= 0 {

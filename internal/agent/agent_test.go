@@ -56,7 +56,7 @@ func (t *fakeTool) Describe() model.Tool {
 	return model.Tool{Type: model.ToolTypeFunction, Function: model.ToolFunctionDefinition{Name: "echo"}}
 }
 
-func (t *fakeTool) Run(input string) (string, error) {
+func (t *fakeTool) Run(input model.ToolCallFunctionArguments) (string, error) {
 	return t.out, nil
 }
 
@@ -84,7 +84,7 @@ func (t *errTool) Describe() model.Tool {
 	return model.Tool{Type: model.ToolTypeFunction, Function: model.ToolFunctionDefinition{Name: "boom"}}
 }
 
-func (t *errTool) Run(input string) (string, error) {
+func (t *errTool) Run(input model.ToolCallFunctionArguments) (string, error) {
 	return "", errors.New("kaboom")
 }
 
@@ -134,8 +134,8 @@ func TestRun_ToolRoundThenFinal(t *testing.T) {
 		ID:   "call_1",
 		Type: "function",
 		Function: struct {
-			Name      string `json:"name"`
-			Arguments string `json:"arguments"`
+			Name      string                          `json:"name"`
+			Arguments model.ToolCallFunctionArguments `json:"arguments"`
 		}{Name: "echo", Arguments: `{"text":"x"}`},
 	}}}
 	f := &fakeModel{responses: []*model.Response{
@@ -212,8 +212,8 @@ func TestRun_AssistantPrecedesToolCall(t *testing.T) {
 		ID:   "call_1",
 		Type: "function",
 		Function: struct {
-			Name      string `json:"name"`
-			Arguments string `json:"arguments"`
+			Name      string                          `json:"name"`
+			Arguments model.ToolCallFunctionArguments `json:"arguments"`
 		}{Name: "echo", Arguments: `{}`},
 	}}}
 	f := &fakeModel{responses: []*model.Response{
@@ -255,8 +255,8 @@ func TestRun_ToolErrorFeedsBackToModel(t *testing.T) {
 		ID:   "call_1",
 		Type: "function",
 		Function: struct {
-			Name      string `json:"name"`
-			Arguments string `json:"arguments"`
+			Name      string                          `json:"name"`
+			Arguments model.ToolCallFunctionArguments `json:"arguments"`
 		}{Name: "boom", Arguments: `{}`},
 	}}}
 	f := &fakeModel{responses: []*model.Response{
@@ -334,8 +334,8 @@ func TestRun_UsageTracksLiveContextNotAccumulatedThroughput(t *testing.T) {
 	// gauge must report 3000/4 cached 1500 — the last response — NOT the sum 6000.
 	toolMsg := model.Message{Role: model.MessageRoleAssistant,
 		ToolCalls: []model.ToolCall{{ID: "call_1", Type: "function", Function: struct {
-			Name      string `json:"name"`
-			Arguments string `json:"arguments"`
+			Name      string                          `json:"name"`
+			Arguments model.ToolCallFunctionArguments `json:"arguments"`
 		}{Name: "echo", Arguments: `{}`}}}}
 	g := &growingContextModel{
 		prompts: []int{1000, 2000, 3000},
