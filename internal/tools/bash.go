@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+	"time"
 
 	"thing/internal/model"
 )
@@ -30,6 +31,10 @@ func (b *bash) Describe() model.Tool {
 						"type":        "string",
 						"description": "The bash command to execute",
 					},
+					"timeout": map[string]any{
+						"type":        "integer",
+						"description": "Timeout in seconds",
+					},
 				},
 				"required": []string{"command"},
 			},
@@ -41,13 +46,22 @@ func (b *bash) Describe() model.Tool {
 func (b *bash) Run(ctx context.Context, input model.ToolCallFunctionArguments) (string, error) {
 	var args struct {
 		Command string `json:"command"`
+		Timeout int64  `json:"timeout"`
 	}
 	if err := json.Unmarshal([]byte(input), &args); err != nil {
 		return "", fmt.Errorf("bad arguments: %v", err)
 	}
 
-	cmd := exec.CommandContext(ctx, "bash")
+	cmdCtx := ctx
+	if args.Timeout > 0 {
+		var cancel context.CancelFunc
+		cmdCtx, cancel = context.WithTimeout(ctx, time.Duration(args.Timeout)*time.Second)
+		defer cancel()
+	}
+
+	cmd := exec.CommandContext(cmdCtx, "bash")
 	cmd.Stdin = bytes.NewBufferString(args.Command)
+	cmd.WaitDelay = 1 * time.Second
 
 	out, err := cmd.CombinedOutput()
 	result := string(out)
