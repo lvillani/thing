@@ -48,7 +48,7 @@ type Usage struct {
 // NewAgent creates a new agent with the given model transport and model name. If a skill
 // registry is supplied and it has skills, their catalog is injected into the opening
 // prompt so the model knows what it can load; with no skills the catalog is omitted.
-func NewAgent(m Model, modelName string, reg ...*skills.Registry) *Agent {
+func NewAgent(m Model, modelName string, reg ...*skills.Registry) (*Agent, error) {
 	toolRegistry := tools.NewToolRegistry()
 
 	var skillsRegistry *skills.Registry
@@ -58,12 +58,12 @@ func NewAgent(m Model, modelName string, reg ...*skills.Registry) *Agent {
 
 	cwd, err := os.Getwd()
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	developerPrompt, err := buildDeveloperPrompt(cwd, skillsRegistry)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	return &Agent{
@@ -76,7 +76,7 @@ func NewAgent(m Model, modelName string, reg ...*skills.Registry) *Agent {
 			Messages:  []model.Message{{Role: model.MessageRoleDeveloper, Content: developerPrompt}},
 			Tools:     toolRegistry.Tools(),
 		},
-	}
+	}, nil
 }
 
 // promptWithCatalog appends the tier-1 skill catalog and a short activation instruction

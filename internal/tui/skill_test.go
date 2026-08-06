@@ -89,7 +89,8 @@ func newSkillModel(t *testing.T, specs []string) *Model {
 	if err != nil {
 		t.Fatalf("skills.New: %v", err)
 	}
-	m := newModel(agent.NewAgent(stubModel{}, "fake-model", reg))
+	a, _ := agent.NewAgent(stubModel{}, "fake-model", reg)
+	m := newModel(a)
 	m.input.CharLimit = 0
 	return m
 }
