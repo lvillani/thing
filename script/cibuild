@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+
+set -Eeuo pipefail
+IFS=$'\n\t'
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+TOP_LEVEL="$(cd "$HERE/../" && pwd)"
+
+cd "$TOP_LEVEL"
+
+set -x
+
+go vet ./...
+go build ./...
+go test ./...
