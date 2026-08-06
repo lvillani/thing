@@ -5,6 +5,7 @@ package agent
 import (
 	"html/template"
 	"strings"
+
 	"thing/internal/skills"
 )
 
