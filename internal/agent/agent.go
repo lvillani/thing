@@ -15,21 +15,6 @@ import (
 	"thing/internal/tools"
 )
 
-// baseSystemPrompt is the static opening of every agent's system prompt.
-const baseSystemPrompt = `
-You are an expert assistant operating inside an agent harness.
-`
-
-// systemPromptWithCwd returns the system prompt prefixed with the current working
-// directory so the model knows where in the filesystem it is running.
-func systemPromptWithCwd() string {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return baseSystemPrompt
-	}
-	return fmt.Sprintf("Your current working directory is %s.\n%s", cwd, baseSystemPrompt)
-}
-
 // Model is the seam to a model transport: something that can send a conversation and
 // return the model's reply. The core depends on this interface, never on HTTP or a
 // concrete backend.
@@ -65,31 +50,30 @@ type Usage struct {
 // prompt so the model knows what it can load; with no skills the catalog is omitted.
 func NewAgent(m Model, modelName string, reg ...*skills.Registry) *Agent {
 	toolRegistry := tools.NewToolRegistry()
-	prompt := systemPromptWithCwd()
 
-	// The registry is retained (not just used to seed the catalog) so run can
-	// resolve /skill:<name> manual activation at request time.
-	var registry *skills.Registry
+	var skillsRegistry *skills.Registry
 	if len(reg) > 0 {
-		registry = reg[0]
+		skillsRegistry = reg[0]
 	}
-	if registry != nil {
-		// Model-driven invocation only sees skills that haven't disabled it; the
-		// full catalog (including disabled ones) is still reachable via Skills()
-		// for user-explicit invocation.
-		if cat := registry.ModelCatalog(); len(cat) > 0 {
-			prompt = promptWithCatalog(prompt, cat)
-		}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		panic(err)
+	}
+
+	developerPrompt, err := buildDeveloperPrompt(cwd, skillsRegistry)
+	if err != nil {
+		panic(err)
 	}
 
 	return &Agent{
 		Tools:  toolRegistry,
 		Model:  m,
-		skills: registry,
+		skills: skillsRegistry,
 		Chat: model.Chat{
 			Model:     modelName,
 			SessionID: model.NewSessionID(),
-			Messages:  []model.Message{{Role: model.MessageRoleDeveloper, Content: prompt}},
+			Messages:  []model.Message{{Role: model.MessageRoleDeveloper, Content: developerPrompt}},
 			Tools:     toolRegistry.Tools(),
 		},
 	}

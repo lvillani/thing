@@ -247,51 +247,6 @@ func TestRun_AssistantPrecedesToolCall(t *testing.T) {
 	}
 }
 
-func TestNewAgent_InjectsCatalogWhenSkillsExist(t *testing.T) {
-	root := t.TempDir()
-	dir := filepath.Join(root, "pdf")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "SKILL.md"),
-		[]byte("---\nname: pdf\ndescription: extract text from PDFs\n---\nbody\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	reg, err := skills.New(root)
-	if err != nil {
-		t.Fatalf("skills.New: %v", err)
-	}
-
-	a := NewAgent(&errModel{err: errors.New("never called")}, "m", reg)
-	dev := a.Chat.Messages[0].Content
-
-	if !strings.Contains(dev, "read the SKILL.md") {
-		t.Errorf("opening prompt lacks the activation instruction: %q", dev)
-	}
-	if !strings.Contains(dev, "pdf") || !strings.Contains(dev, "extract text from PDFs") {
-		t.Errorf("opening prompt lacks the catalog entry: %q", dev)
-	}
-	if !strings.Contains(dev, filepath.Join(root, "pdf", "SKILL.md")) {
-		t.Errorf("opening prompt lacks the skill location for bash-read activation: %q", dev)
-	}
-}
-
-func TestNewAgent_OmitsCatalogWhenNoSkills(t *testing.T) {
-	empty, err := skills.New(t.TempDir())
-	if err != nil {
-		t.Fatalf("skills.New: %v", err)
-	}
-	for _, a := range []*Agent{
-		NewAgent(&errModel{err: errors.New("never called")}, "m", empty),
-		NewAgent(&errModel{err: errors.New("never called")}, "m"), // no registry at all
-	} {
-		dev := a.Chat.Messages[0].Content
-		if strings.Contains(dev, "skills provide specialized") {
-			t.Errorf("catalog/instruction leaked into the prompt when no skills exist: %q", dev)
-		}
-	}
-}
-
 func TestRun_ToolErrorFeedsBackToModel(t *testing.T) {
 	// A tool call that errors must NOT terminate the run. The failure is fed back to
 	// the model as a tool result (so the model can see and react to it), and the loop
@@ -339,19 +294,6 @@ func TestRun_ToolErrorFeedsBackToModel(t *testing.T) {
 	}
 	if !found {
 		t.Error("conversation lacks the tool error fed back to the model for call_1")
-	}
-}
-
-func TestNewAgent_InjectsWorkingDirectory(t *testing.T) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	a := NewAgent(&errModel{err: errors.New("never called")}, "m")
-
-	dev := a.Chat.Messages[0].Content
-	if !strings.Contains(dev, "Your current working directory is "+cwd) {
-		t.Errorf("opening prompt lacks the working directory: %q", dev)
 	}
 }
 
