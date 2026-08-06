@@ -68,12 +68,10 @@ func TestRenderEvent(t *testing.T) {
 		want []string
 	}{
 		{name: "tool call", ev: agent.Event{Kind: agent.KindToolCall, Tool: "bash"}, want: []string{"↳ bash"}},
-		{name: "tool result", ev: agent.Event{Kind: agent.KindToolResult, Message: "ok"}, want: []string{"ok"}},
 		{name: "error", ev: agent.Event{Kind: agent.KindError, Message: "boom"}, want: []string{"error: boom"}},
 		{name: "final markdown", ev: agent.Event{Kind: agent.KindFinal, Message: "# Done\n\nsome **answer**"}, want: []string{"Agent", "Done", "some", "answer"}},
 		{name: "unknown", ev: agent.Event{Kind: "bogus"}, want: nil},
 		{name: "tool call with command", ev: agent.Event{Kind: agent.KindToolCall, Tool: "bash", ToolInput: `{"command":"ls -la"}`}, want: []string{"↳ bash {\"command\":\"ls -la\"}"}},
-		{name: "tool result truncated", ev: agent.Event{Kind: agent.KindToolResult, Message: "l1\nl2\nl3\nl4\nl5"}, want: []string{"… (truncated)", "l3", "l4", "l5"}},
 	}
 	for _, c := range cases {
 		got := mergeLines(stripANSI(strings.Join(renderEvent(c.ev), "\n")))

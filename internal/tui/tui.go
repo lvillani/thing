@@ -141,8 +141,6 @@ func renderEvent(ev agent.Event) []string {
 		return labeled("Agent", agentStyle, ev.Message)
 	case agent.KindToolCall:
 		return []string{toolStyle.Render("  ↳ " + ev.Tool + " " + string(ev.ToolInput)), ""}
-	case agent.KindToolResult:
-		return []string{toolStyle.Render("  " + tailLines(ev.Message, 3)), ""}
 	case agent.KindError:
 		return []string{errorStyle.Render("error: " + ev.Message)}
 	default:
