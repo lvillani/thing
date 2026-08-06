@@ -4,42 +4,58 @@
 package tools
 
 import (
+	"fmt"
+
 	"thing/internal/model"
 )
 
-type ToolFunction func(input string) (string, error)
+// runFunction is the callable function signature for a tool.
+type runFunction func(input string) (string, error)
 
+// Tool is the interface that all tools must implement to be registered with the tool
+// registry.
 type Tool interface {
 	Describe() model.Tool
 	Run(input string) (string, error)
 }
 
-type ToolRegistry struct {
-	tools      []model.Tool
-	toolsFuncs map[string]ToolFunction
+// Registry is a registry of tools that can be invoked by the model.
+type Registry struct {
+	tools        []model.Tool
+	runFunctions map[string]runFunction
 }
 
-func NewToolRegistry() *ToolRegistry {
-	r := ToolRegistry{toolsFuncs: make(map[string]ToolFunction)}
+// NewRegistry returns a new tool registry with all built-in tools already registered.
+func NewRegistry() *Registry {
+	r := Registry{runFunctions: make(map[string]runFunction)}
 	r.Register(&bash{})
 
 	return &r
 }
 
 // Register adds a tool so the model can invoke it.
-func (r *ToolRegistry) Register(tool Tool) {
+func (r *Registry) Register(tool Tool) {
 	desc := tool.Describe()
+
+	if _, ok := r.runFunctions[desc.Function.Name]; ok {
+		return
+	}
+
 	r.tools = append(r.tools, desc)
-	r.toolsFuncs[desc.Function.Name] = tool.Run
+	r.runFunctions[desc.Function.Name] = tool.Run
 }
 
-func (r *ToolRegistry) Tools() []model.Tool {
+// Tools returns the list of tools registered with the registry.
+func (r *Registry) Tools() []model.Tool {
 	return r.tools
 }
 
-func (r *ToolRegistry) Run(name string, input string) (string, error) {
-	if f, ok := r.toolsFuncs[name]; ok {
-		return f(input)
+// Run executes the tool with the given name and input.
+func (r *Registry) Run(name string, input string) (string, error) {
+	f, ok := r.runFunctions[name]
+	if !ok {
+		return "", fmt.Errorf("tool %q not found", name)
 	}
-	return "", nil
+
+	return f(input)
 }

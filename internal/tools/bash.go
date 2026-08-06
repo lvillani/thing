@@ -12,8 +12,10 @@ import (
 	"thing/internal/model"
 )
 
+// bash is a tool that executes bash commands.
 type bash struct{}
 
+// Describe returns the description of the bash tool.
 func (b *bash) Describe() model.Tool {
 	return model.Tool{
 		Type: model.ToolTypeFunction,
@@ -34,6 +36,7 @@ func (b *bash) Describe() model.Tool {
 	}
 }
 
+// Run executes the bash command provided in the input.
 func (b *bash) Run(input string) (string, error) {
 	var args struct {
 		Command string `json:"command"`

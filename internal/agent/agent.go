@@ -24,7 +24,7 @@ type Model interface {
 
 // Agent represents an agent. It holds the conversation state.
 type Agent struct {
-	Tools  *tools.ToolRegistry
+	Tools  *tools.Registry
 	Model  Model
 	Chat   model.Chat
 	skills *skills.Registry // retained so run can resolve /skill:<name> activation
@@ -49,7 +49,7 @@ type Usage struct {
 // registry is supplied and it has skills, their catalog is injected into the opening
 // prompt so the model knows what it can load; with no skills the catalog is omitted.
 func NewAgent(m Model, modelName string, reg ...*skills.Registry) (*Agent, error) {
-	toolRegistry := tools.NewToolRegistry()
+	toolRegistry := tools.NewRegistry()
 
 	var skillsRegistry *skills.Registry
 	if len(reg) > 0 {
