@@ -27,26 +27,24 @@ const (
 )
 
 // Chat represents a chat conversation with a model, including the messages exchanged,
-// any tools used, and a session identifier. SessionID is transported in the request
-// body (not a header, unlike the removed X-Session-Id) because providers such as
-// OpenRouter accept it as model metadata; keeping it on Chat means it serializes with
-// the conversation and so is restored naturally by future history save/reload.
+// any tools used, and a session identifier. The session identifier is transported in
+// the request body because providers such as OpenRouter can use it to group requests
+// together to maximize cache hits. Keeping it here means it serializes with the
+// conversation and so is restored naturally when deserializing it.
 type Chat struct {
-	Model     string    `json:"model"`
 	SessionID string    `json:"session_id,omitempty"`
+	Model     string    `json:"model"`
 	Tools     []Tool    `json:"tools"`
 	Messages  []Message `json:"messages"`
 }
 
-// NewSessionID returns a random UUIDv4 used to identify a conversation. It needs no
-// shared state across requests, just enough entropy that sessions cannot collide. The
-// system CSPRNG is not expected to fail on supported platforms, so an error is
-// unrecoverable — panic rather than silently hand out a colliding ID.
+// NewSessionID returns a random UUIDv4 used to identify a conversation.
 func NewSessionID() string {
 	var b [16]byte
 	if _, err := rand.Read(b[:]); err != nil {
 		panic(fmt.Sprintf("model: generate session id: %v", err))
 	}
+
 	// RFC 4122 version 4 and variant bits.
 	b[6] = (b[6] & 0x0f) | 0x40
 	b[8] = (b[8] & 0x3f) | 0x80
@@ -57,19 +55,6 @@ func NewSessionID() string {
 type Tool struct {
 	Type     ToolType               `json:"type"`
 	Function ToolFunctionDefinition `json:"function"`
-}
-
-// NewTool creates a new Tool instance with the given name and parameters.
-func NewTool(name string, parameters map[string]any) *Tool {
-	return &Tool{
-		Type: ToolTypeFunction,
-		Function: ToolFunctionDefinition{
-			Name:        name,
-			Strict:      true,
-			Description: "",
-			Parameters:  parameters,
-		},
-	}
 }
 
 // ToolFunctionDefinition represents the definition of a function tool.
