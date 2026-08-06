@@ -335,6 +335,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.spinner, cmd = m.spinner.Update(msg)
 		return m, cmd
 
+	case tea.PasteMsg:
+		// Pasting arrives as a separate message (not key presses) and must be
+		// forwarded to the input, otherwise pasted text is dropped. Like a key
+		// edit, it re-syncs the popups.
+		var cmd tea.Cmd
+		m.input, cmd = m.input.Update(msg)
+		m = m.refreshMention()
+		m = m.refreshSkill()
+		return m, cmd
+
 	case tea.KeyPressMsg:
 		// A popup (file-mention or skill) is active: arrows move the selection,
 		// Tab/Enter commit, Esc closes. All other keys edit the input and re-sync

@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
+
 	"thing/internal/agent"
 )
 
@@ -216,5 +218,17 @@ func TestMentionCommitReplacesQuery(t *testing.T) {
 	}
 	if m.mention.open {
 		t.Errorf("expected mention popup to close")
+	}
+}
+
+func TestPasteInsertsIntoInput(t *testing.T) {
+	m := newTestModel()
+	m.input.SetValue("hello ")
+	m.input.CursorEnd()
+
+	got, _ := m.Update(tea.PasteMsg{Content: "world"})
+	nm := got.(Model)
+	if nm.input.Value() != "hello world" {
+		t.Errorf("after paste: %q, want %q", nm.input.Value(), "hello world")
 	}
 }
