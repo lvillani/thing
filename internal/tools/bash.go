@@ -4,6 +4,7 @@ package tools
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os/exec"
@@ -37,7 +38,7 @@ func (b *bash) Describe() model.Tool {
 }
 
 // Run executes the bash command provided in the input.
-func (b *bash) Run(input model.ToolCallFunctionArguments) (string, error) {
+func (b *bash) Run(ctx context.Context, input model.ToolCallFunctionArguments) (string, error) {
 	var args struct {
 		Command string `json:"command"`
 	}
@@ -45,7 +46,7 @@ func (b *bash) Run(input model.ToolCallFunctionArguments) (string, error) {
 		return "", fmt.Errorf("bad arguments: %v", err)
 	}
 
-	cmd := exec.Command("bash")
+	cmd := exec.CommandContext(ctx, "bash")
 	cmd.Stdin = bytes.NewBufferString(args.Command)
 
 	out, err := cmd.CombinedOutput()

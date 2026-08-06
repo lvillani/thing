@@ -56,7 +56,7 @@ func (t *fakeTool) Describe() model.Tool {
 	return model.Tool{Type: model.ToolTypeFunction, Function: model.ToolFunctionDefinition{Name: "echo"}}
 }
 
-func (t *fakeTool) Run(input model.ToolCallFunctionArguments) (string, error) {
+func (t *fakeTool) Run(ctx context.Context, input model.ToolCallFunctionArguments) (string, error) {
 	return t.out, nil
 }
 
@@ -84,7 +84,7 @@ func (t *errTool) Describe() model.Tool {
 	return model.Tool{Type: model.ToolTypeFunction, Function: model.ToolFunctionDefinition{Name: "boom"}}
 }
 
-func (t *errTool) Run(input model.ToolCallFunctionArguments) (string, error) {
+func (t *errTool) Run(ctx context.Context, input model.ToolCallFunctionArguments) (string, error) {
 	return "", errors.New("kaboom")
 }
 

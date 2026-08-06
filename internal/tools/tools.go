@@ -4,19 +4,20 @@
 package tools
 
 import (
+	"context"
 	"fmt"
 
 	"thing/internal/model"
 )
 
 // runFunction is the callable function signature for a tool.
-type runFunction func(input model.ToolCallFunctionArguments) (string, error)
+type runFunction func(ctx context.Context, input model.ToolCallFunctionArguments) (string, error)
 
 // Tool is the interface that all tools must implement to be registered with the tool
 // registry.
 type Tool interface {
 	Describe() model.Tool
-	Run(input model.ToolCallFunctionArguments) (string, error)
+	Run(ctx context.Context, input model.ToolCallFunctionArguments) (string, error)
 }
 
 // Registry is a registry of tools that can be invoked by the model.
@@ -51,11 +52,11 @@ func (r *Registry) Tools() []model.Tool {
 }
 
 // Run executes the tool with the given name and input.
-func (r *Registry) Run(name string, input model.ToolCallFunctionArguments) (string, error) {
+func (r *Registry) Run(ctx context.Context, name string, input model.ToolCallFunctionArguments) (string, error) {
 	f, ok := r.runFunctions[name]
 	if !ok {
 		return "", fmt.Errorf("tool %q not found", name)
 	}
 
-	return f(input)
+	return f(ctx, input)
 }

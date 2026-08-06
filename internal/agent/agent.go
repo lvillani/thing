@@ -144,7 +144,7 @@ func (a *Agent) run(ctx context.Context, message *model.Message, events chan<- E
 			if !a.emit(ctx, events, Event{Kind: KindToolCall, Tool: toolCall.Function.Name, ToolInput: toolCall.Function.Arguments}) {
 				return
 			}
-			result, err := a.Tools.Run(toolCall.Function.Name, toolCall.Function.Arguments)
+			result, err := a.Tools.Run(ctx, toolCall.Function.Name, toolCall.Function.Arguments)
 			if err != nil {
 				// A failed tool call must not terminate the run: feed the failure back
 				// to the model as a tool result so it can see the error and react

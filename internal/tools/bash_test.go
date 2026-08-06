@@ -3,12 +3,13 @@
 package tools
 
 import (
+	"context"
 	"strings"
 	"testing"
 )
 
 func TestBash_SuccessReturnsOutput(t *testing.T) {
-	out, err := (&bash{}).Run(`{"command":"echo hello"}`)
+	out, err := (&bash{}).Run(context.TODO(), `{"command":"echo hello"}`)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -20,7 +21,7 @@ func TestBash_SuccessReturnsOutput(t *testing.T) {
 func TestBash_NonZeroRcReturnsOutputWithErr(t *testing.T) {
 	// A command that exits nonzero but writes to stderr must return an error that
 	// carries the output, so the model can see what went wrong.
-	out, err := (&bash{}).Run(`{"command":"echo boom >&2; exit 1"}`)
+	out, err := (&bash{}).Run(context.TODO(), `{"command":"echo boom >&2; exit 1"}`)
 	if err == nil {
 		t.Fatal("expected an error for rc=1, got nil")
 	}
