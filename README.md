@@ -25,15 +25,6 @@ which I use every day.
 No vibe-coding. The whole point is to understand how agent loops work. A model may help
 guide its own evolution, but nothing ever lands blindly.
 
-## 🚀 Quick start
-
-```bash
-export OPENROUTER_API_TOKEN=your_token
-go run .
-```
-
-That's it. The TUI boots, and you're talking to an agent that can read its own code.
-
 ## 📚 The paper trail
 
 The `docs/adr/` directory records *why* decisions were made. If you want to understand

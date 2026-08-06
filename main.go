@@ -11,12 +11,11 @@ import (
 
 	"thing/internal/agent"
 	"thing/internal/backend"
+	"thing/internal/config"
+	"thing/internal/keychain"
 	"thing/internal/skills"
 	"thing/internal/tui"
 )
-
-const endpoint = "https://openrouter.ai/api/v1/chat/completions"
-const modelName = "deepseek/deepseek-v4-flash-0731"
 
 // skillsRegistry builds the skill registry from the user-level and project-level skill
 // locations, with the project overriding the user on a name collision. It returns nil
@@ -38,14 +37,25 @@ func skillsRegistry() *skills.Registry {
 }
 
 func main() {
-	token := os.Getenv("OPENROUTER_API_TOKEN")
-	if token == "" {
-		fmt.Fprintln(os.Stderr, "OPENROUTER_API_TOKEN not set")
+	token, err := keychain.GetApiToken()
+	if err != nil {
+		fmt.Print("Please enter your API token: ")
+		var token string
+		fmt.Scanln(&token)
+		if err := keychain.StoreApiToken(token); err != nil {
+			fmt.Fprintln(os.Stderr, "error storing API token:", err)
+			os.Exit(1)
+		}
+	}
+
+	cfg, err := config.Load()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "error loading config:", err)
 		os.Exit(1)
 	}
 
 	client := &http.Client{Timeout: 10 * time.Minute}
-	a, _ := agent.NewAgent(backend.NewOpenAI(token, endpoint, client), modelName, skillsRegistry())
+	a, _ := agent.NewAgent(backend.NewOpenAI(token, cfg.Endpoint, client), cfg.Model, skillsRegistry())
 
 	app := tui.New(a)
 	if _, err := app.Run(); err != nil {
