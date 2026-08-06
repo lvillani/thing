@@ -13,11 +13,15 @@ import (
 const expectedDeveloperPromptNoSkills = `
 You are an expert assistant operating inside an agent harness.
 
+Be succint in your responses. Use ASD-STE100 Simplified Technical English (STE).
+
 Your current working directory is "/home/user/project".
 `
 
 const expectedDeveloperPromptWithSkills = `
 You are an expert assistant operating inside an agent harness.
+
+Be succint in your responses. Use ASD-STE100 Simplified Technical English (STE).
 
 Your current working directory is "/home/user/project".
 

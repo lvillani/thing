@@ -13,6 +13,8 @@ import (
 const developerPromptTemplate = `
 You are an expert assistant operating inside an agent harness.
 
+Be succint in your responses. Use ASD-STE100 Simplified Technical English (STE).
+
 Your current working directory is "{{.cwd}}".
 {{- if .skillsCatalog}}
 
