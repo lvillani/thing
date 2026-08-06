@@ -23,7 +23,7 @@ func (b *bash) Describe() model.Tool {
 		Type: model.ToolTypeFunction,
 		Function: model.ToolFunctionDefinition{
 			Name:        "bash",
-			Description: "Execute a bash command.",
+			Description: "Execute a bash command",
 			Parameters: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
