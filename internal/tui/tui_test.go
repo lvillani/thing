@@ -97,7 +97,7 @@ func TestViewIsFooterOnly(t *testing.T) {
 	if !strings.Contains(frame, "> ") || !strings.Contains(frame, "enter send") {
 		t.Errorf("footer missing input or help: %q", frame)
 	}
-	if !strings.Contains(frame, "working") {
+	if !strings.Contains(frame, "Working") {
 		t.Errorf("footer missing spinner while running: %q", frame)
 	}
 }

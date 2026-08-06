@@ -405,7 +405,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Model) View() tea.View {
 	var parts []string
 	if m.running {
-		parts = append(parts, m.spinner.View()+" working…")
+		parts = append(parts, m.spinner.View()+" Working...")
 	} else {
 		parts = append(parts, "")
 	}
