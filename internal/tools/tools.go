@@ -30,6 +30,8 @@ type Registry struct {
 func NewRegistry() *Registry {
 	r := Registry{runFunctions: make(map[string]runFunction)}
 	r.Register(&bash{})
+	r.Register(&read{})
+	r.Register(&write{})
 
 	return &r
 }
