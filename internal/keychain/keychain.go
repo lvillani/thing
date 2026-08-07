@@ -7,29 +7,29 @@ package keychain
 import (
 	"errors"
 
-	"github.com/keybase/go-keychain"
+	"github.com/zalando/go-keyring"
+)
+
+const (
+	service = "thing"
+	account = "api"
 )
 
 // GetApiToken retrieves the API token from the system keychain. It returns an error if
 // the token is not found or if there is an issue accessing the keychain.
 func GetApiToken() (string, error) {
-	token, err := keychain.GetGenericPassword("thing", "api", "", "")
-	if token == nil {
-		return "", errors.New("API token not found in keychain")
-	}
+	token, err := keyring.Get(service, account)
 	if err != nil {
+		if errors.Is(err, keyring.ErrNotFound) {
+			return "", errors.New("API token not found in keychain")
+		}
 		return "", err
 	}
 
-	return string(token), nil
+	return token, nil
 }
 
 // StoreApiToken stores the given API token in the system keychain.
 func StoreApiToken(token string) error {
-	item := keychain.NewGenericPassword("thing", "api", "", []byte(token), "")
-	if err := keychain.AddItem(item); err != nil {
-		return err
-	}
-
-	return nil
+	return keyring.Set(service, account, token)
 }
