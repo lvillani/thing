@@ -20,10 +20,9 @@ Your current working directory is "{{.cwd}}".
 {{- if .skillsCatalog}}
 
 The following skills provide specialized instructions for specific tasks. When a task
-matches a skill's description, use the "read" tool to load the SKILL.md at the
-listed location before proceeding. When a skill references relative paths, resolve
-them against the skill's directory (the parent of SKILL.md) and use absolute paths in
-tool calls.
+matches a skill's description, use the "read" tool to load the SKILL.md at the listed
+location before proceeding. When a skill references relative paths, resolve them against
+the skill's directory (the parent of SKILL.md) and use absolute paths in tool calls.
 
 <available_skills>
   {{- range .skillsCatalog}}
