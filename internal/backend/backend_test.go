@@ -67,16 +67,3 @@ func TestOpenAIComplete_NonOKStatusReturnsError(t *testing.T) {
 		t.Errorf("error = %q, want it to include HTTP status", err.Error())
 	}
 }
-
-func TestOpenAIComplete_NoChoicesReturnsError(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"choices":[]}`))
-	}))
-	defer srv.Close()
-
-	o := NewOpenAI("secret", srv.URL, srv.Client())
-	if _, err := o.Complete(context.Background(), model.Chat{}); err == nil {
-		t.Fatal("expected error for empty choices, got nil")
-	}
-}

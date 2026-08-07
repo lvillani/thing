@@ -116,8 +116,11 @@ func (a *Agent) run(ctx context.Context, message *model.Message, events chan<- E
 			a.emit(ctx, events, Event{Kind: KindError, Message: err.Error()})
 			return
 		}
-		if len(response.Choices) == 0 {
-			a.emit(ctx, events, Event{Kind: KindError, Message: "model returned no choices"})
+
+		// We don't explicitly set "n" and its default is "1", hence we expect exactly
+		// one choice.
+		if len(response.Choices) != 1 {
+			a.emit(ctx, events, Event{Kind: KindError, Message: fmt.Sprintf("model returned %d choices, expected 1", len(response.Choices))})
 			return
 		}
 

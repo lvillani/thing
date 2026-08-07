@@ -58,12 +58,5 @@ func (o *OpenAI) Complete(ctx context.Context, chat model.Chat) (*model.Response
 		return nil, fmt.Errorf("decode response: %w", err)
 	}
 
-	// We don't explicitly set "n" and its default is "1", hence we expect exactly one
-	// choice.
-	nChoices := len(result.Choices)
-	if nChoices != 1 {
-		return nil, fmt.Errorf("got %d choices, expected 1", nChoices)
-	}
-
 	return &result, nil
 }
