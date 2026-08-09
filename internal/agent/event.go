@@ -8,6 +8,8 @@ import "thing/internal/model"
 type EventKind string
 
 const (
+	// KindUser reports that the user sent a message to the model.
+	KindUser EventKind = "user"
 	// KindAssistant reports an assistant message produced before tool calls.
 	KindAssistant EventKind = "assistant"
 	// KindToolCall reports that the model invoked a tool.

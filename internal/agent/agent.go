@@ -109,6 +109,7 @@ func (a *Agent) Run(ctx context.Context, message *model.Message) <-chan Event {
 
 func (a *Agent) run(ctx context.Context, message *model.Message, events chan<- Event) {
 	a.Chat.Messages = append(a.Chat.Messages, *message)
+	a.emit(ctx, events, Event{Kind: KindUser, Message: message.Content})
 
 	for {
 		response, err := a.Model.Complete(ctx, a.Chat)

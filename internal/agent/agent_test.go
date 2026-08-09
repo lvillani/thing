@@ -110,12 +110,13 @@ func TestRun_StraightFinal(t *testing.T) {
 	a, _ := NewAgent(f, "fake-model")
 	evs := collect(t, a.Run(context.Background(), model.NewUserMessage("hi")))
 
-	if len(evs) != 1 || evs[0].Kind != KindFinal || evs[0].Message != "hello there" {
-		t.Fatalf("events = %+v, want a single final 'hello there'", evs)
+	if len(evs) != 2 || evs[0].Kind != KindUser || evs[0].Message != "hi" ||
+		evs[1].Kind != KindFinal || evs[1].Message != "hello there" {
+		t.Fatalf("events = %+v, want user 'hi' then a single final 'hello there'", evs)
 	}
-	if evs[0].PromptTokens != 10 || evs[0].CompletionTokens != 4 || evs[0].CachedTokens != 3 {
+	if evs[1].PromptTokens != 10 || evs[1].CompletionTokens != 4 || evs[1].CachedTokens != 3 {
 		t.Errorf("final event usage = in %d/out %d/cached %d, want 10/4/3",
-			evs[0].PromptTokens, evs[0].CompletionTokens, evs[0].CachedTokens)
+			evs[1].PromptTokens, evs[1].CompletionTokens, evs[1].CachedTokens)
 	}
 
 	// Conversation ends with the assistant reply; usage accumulated in the core.
@@ -148,7 +149,7 @@ func TestRun_ToolRoundThenFinal(t *testing.T) {
 
 	evs := collect(t, a.Run(context.Background(), model.NewUserMessage("please echo")))
 
-	want := []EventKind{KindToolCall, KindToolResult, KindFinal}
+	want := []EventKind{KindUser, KindToolCall, KindToolResult, KindFinal}
 	if len(evs) != len(want) {
 		t.Fatalf("events = %+v, want %v", evs, want)
 	}
@@ -157,14 +158,14 @@ func TestRun_ToolRoundThenFinal(t *testing.T) {
 			t.Errorf("event[%d] = %s, want %s (%+v)", i, evs[i].Kind, k, evs[i])
 		}
 	}
-	if evs[0].Tool != "echo" || evs[1].Tool != "echo" {
-		t.Errorf("tool events = %+v, %+v, both want tool 'echo'", evs[0], evs[1])
+	if evs[1].Tool != "echo" || evs[2].Tool != "echo" {
+		t.Errorf("tool events = %+v, %+v, both want tool 'echo'", evs[1], evs[2])
 	}
-	if evs[1].Message != "echoed" {
-		t.Errorf("tool result = %q, want 'echoed'", evs[1].Message)
+	if evs[2].Message != "echoed" {
+		t.Errorf("tool result = %q, want 'echoed'", evs[2].Message)
 	}
-	if evs[2].Message != "done" {
-		t.Errorf("final = %q, want 'done'", evs[2].Message)
+	if evs[3].Message != "done" {
+		t.Errorf("final = %q, want 'done'", evs[3].Message)
 	}
 
 	// The tool result was fed back into the conversation as a tool message.
@@ -187,8 +188,9 @@ func TestRun_ModelError(t *testing.T) {
 	a, _ := NewAgent(&errModel{err: errors.New("boom")}, "fake-model")
 	evs := collect(t, a.Run(context.Background(), model.NewUserMessage("hi")))
 
-	if len(evs) != 1 || evs[0].Kind != KindError || evs[0].Message != "boom" {
-		t.Fatalf("events = %+v, want a single error 'boom'", evs)
+	if len(evs) != 2 || evs[0].Kind != KindUser || evs[0].Message != "hi" ||
+		evs[1].Kind != KindError || evs[1].Message != "boom" {
+		t.Fatalf("events = %+v, want user 'hi' then a single error 'boom'", evs)
 	}
 }
 
@@ -229,6 +231,7 @@ func TestRun_AssistantPrecedesToolCall(t *testing.T) {
 		kind EventKind
 		msg  string
 	}{
+		{KindUser, "please check"},
 		{KindAssistant, "let me check that"},
 		{KindToolCall, ""},
 		{KindToolResult, "echoed"},
@@ -269,7 +272,7 @@ func TestRun_ToolErrorFeedsBackToModel(t *testing.T) {
 
 	evs := collect(t, a.Run(context.Background(), model.NewUserMessage("trigger a failure")))
 
-	want := []EventKind{KindToolCall, KindToolResult, KindFinal}
+	want := []EventKind{KindUser, KindToolCall, KindToolResult, KindFinal}
 	if len(evs) != len(want) {
 		t.Fatalf("events = %+v, want %v (tool error must not terminate the run)", evs, want)
 	}
@@ -278,11 +281,11 @@ func TestRun_ToolErrorFeedsBackToModel(t *testing.T) {
 			t.Errorf("event[%d].Kind = %s, want %s", i, evs[i].Kind, k)
 		}
 	}
-	if !strings.Contains(evs[1].Message, "kaboom") {
-		t.Errorf("tool result = %q, want it to carry the tool error 'kaboom'", evs[1].Message)
+	if !strings.Contains(evs[2].Message, "kaboom") {
+		t.Errorf("tool result = %q, want it to carry the tool error 'kaboom'", evs[2].Message)
 	}
-	if evs[2].Message != "ok, noted the failure" {
-		t.Errorf("final = %q, want the model's reaction to the failure", evs[2].Message)
+	if evs[3].Message != "ok, noted the failure" {
+		t.Errorf("final = %q, want the model's reaction to the failure", evs[3].Message)
 	}
 
 	// The failure was fed back to the model as a tool message.
