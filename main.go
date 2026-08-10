@@ -56,13 +56,9 @@ func main() {
 
 	client := &http.Client{Timeout: 10 * time.Minute}
 	a, _ := agent.NewAgent(backend.NewOpenAI(token, cfg.Endpoint, client), cfg.Model, skillsRegistry())
-
-	app := tui.New(a)
-	if _, err := app.Run(); err != nil {
+	t := tui.NewTui(a)
+	if err := t.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}
-	// The footer stays on the final rendered lines; emit a fresh line so the shell
-	// prompt isn't appended right after it.
-	fmt.Println()
 }

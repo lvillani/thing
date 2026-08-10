@@ -1,0 +1,258 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
+// Package tui provides a terminal user interface for the application.
+package tui
+
+import (
+	"bufio"
+	"context"
+	"encoding/json"
+	"fmt"
+	"strings"
+
+	"thing/internal/agent"
+	thingmodel "thing/internal/model"
+
+	"charm.land/bubbles/v2/help"
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/textarea"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/glamour/v2"
+	"charm.land/glamour/v2/styles"
+	"charm.land/lipgloss/v2"
+)
+
+// runFinishedMsg reports that the current run has ended (normally or by cancellation).
+type runFinishedMsg struct{}
+
+// model stores the application state.
+type model struct {
+	// Dependencies
+	p     *tea.Program
+	agent *agent.Agent
+
+	// State
+	isWorking bool
+	cancel    context.CancelFunc
+
+	// Views
+	spinner  spinner.Model
+	textarea textarea.Model
+	help     help.Model
+	keys     keyMap
+}
+
+// initialModel returns the initial state of the application.
+func initialModel(agent *agent.Agent) model {
+	// "Working" spinner.
+	s := spinner.New()
+	s.Spinner = spinner.Meter
+	s.Style = lipgloss.NewStyle().Foreground(primaryColor)
+
+	// Input text area.
+	t := textarea.New()
+	t.DynamicHeight = true
+	t.Prompt = "> "
+	t.ShowLineNumbers = false
+
+	styles := t.Styles()
+	styles.Focused.CursorLine = styles.Focused.CursorLine.UnsetBackground()
+
+	t.MaxWidth = maxWidth - len(t.Prompt) - 2*textareaPadding
+
+	t.Focus()
+	t.SetHeight(1)
+	t.SetStyles(styles)
+
+	return model{
+		agent:    agent,
+		spinner:  s,
+		help:     help.New(),
+		textarea: t,
+		keys:     defaultKeyMap(),
+	}
+}
+
+// Init implements the tea.Model interface. It is the first function that will be
+// called. It returns an optional initial command. To not perform an initial command
+// return nil.
+func (m model) Init() tea.Cmd {
+	return nil
+}
+
+// Update implements the tea.Model interface. It is called when a message is received.
+// Use it to inspect messages and, in response, update the model and/or send a command.
+func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.textarea.SetWidth(msg.Width)
+		m.help.SetWidth(msg.Width)
+	case tea.KeyPressMsg:
+		switch {
+		case key.Matches(msg, m.keys.Send):
+			var cmd tea.Cmd
+			m, cmd = m.handleSend()
+			cmds = append(cmds, cmd)
+		case key.Matches(msg, m.keys.Cancel):
+			var cmd tea.Cmd
+			m, cmd = m.handleCancel()
+			cmds = append(cmds, cmd)
+		case key.Matches(msg, m.keys.Quit):
+			return m, tea.Quit
+		}
+	case runFinishedMsg:
+		m.isWorking = false
+		m.cancel = nil
+	}
+
+	if m.isWorking {
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		cmds = append(cmds, cmd)
+	}
+
+	{
+		var cmd tea.Cmd
+		m.textarea, cmd = m.textarea.Update(msg)
+		cmds = append(cmds, cmd)
+	}
+
+	return m, tea.Batch(cmds...)
+}
+
+// View implements the tea.Model interface. It renders the program's UI, which can be a
+// string or a Layer. The view is rendered after every Update.
+func (m model) View() tea.View {
+	var parts []string
+
+	if m.isWorking {
+		parts = append(parts, m.spinner.View()+" Working...")
+	}
+
+	parts = append(parts, textareaStyle.Render(m.textarea.View()))
+	parts = append(parts, m.help.View(m.keys))
+
+	return tea.NewView(strings.Join(parts, "\n"))
+}
+
+// handleSend handles the send message action.
+func (m model) handleSend() (model, tea.Cmd) {
+	if m.isWorking {
+		// Do nothing while a request is in flight.
+		return m, nil
+	}
+
+	trimmed := strings.TrimSpace(m.textarea.Value())
+	m.textarea.SetValue("")
+	if trimmed == "" {
+		// Do nothing with an empty message.
+		return m, nil
+	}
+
+	// Start a new inference run.
+	ctx, cancel := context.WithCancel(context.Background())
+	m.cancel = cancel
+	m.isWorking = true
+	events := m.agent.Run(ctx, thingmodel.NewUserMessage(trimmed))
+
+	// Process events.
+	p := m.p
+	go func() {
+		for event := range events {
+			m.renderToScrollback(m.renderEvent(event))
+		}
+		p.Send(runFinishedMsg{})
+	}()
+
+	return m, m.spinner.Tick
+}
+
+// handleCancel handles the cancel action.
+func (m model) handleCancel() (model, tea.Cmd) {
+	if m.cancel != nil {
+		m.cancel()
+	}
+
+	m.isWorking = false
+	m.cancel = nil
+
+	return m, nil
+}
+
+// renderToScrollback renders text to the scrollback buffer.
+func (m *model) renderToScrollback(s string) {
+	// NOTE: We split the string into lines and send them individually to the scrollback
+	// buffer to avoid corrupting the terminal output when a single string exceeds the
+	// terminal's height.
+	scanner := bufio.NewScanner(strings.NewReader(s))
+	for scanner.Scan() {
+		m.p.Println(scanner.Text())
+	}
+}
+
+// renderEvent renders an event to a string.
+func (m *model) renderEvent(event agent.Event) string {
+	switch event.Kind {
+	case agent.KindAssistant, agent.KindFinal, agent.KindUser:
+		return m.renderMessageEvent(event)
+	case agent.KindToolCall:
+		return toolStyle.Render(m.renderToolCallEvent(event))
+	case agent.KindError:
+		return errorStyle.Render("error: " + event.Message)
+	default:
+		return ""
+	}
+}
+
+// renderMessageEvent renders a message event to a string.
+func (m *model) renderMessageEvent(event agent.Event) string {
+	switch event.Kind {
+	case agent.KindAssistant, agent.KindFinal:
+		return assistantMessageStyle.Render(m.mustRenderMarkdown(event.Message))
+	case agent.KindUser:
+		return userMessageStyle.Render(m.mustRenderMarkdown(event.Message))
+	default:
+		return ""
+	}
+}
+
+// renderToolCallEvent renders a tool call event to a string.
+func (m *model) renderToolCallEvent(event agent.Event) string {
+	input := string(event.ToolInput)
+
+	var toolArgs map[string]any
+	err := json.Unmarshal([]byte(event.ToolInput), &toolArgs)
+	if err == nil {
+		if arg, ok := toolArgs["path"]; ok {
+			input = arg.(string)
+		} else if arg, ok := toolArgs["command"]; ok {
+			input = arg.(string)
+		}
+	}
+
+	return toolMessageStyle.Render(fmt.Sprintf("  %s %s", event.Tool, input))
+}
+
+// mustRenderMarkdown renders a string as markdown and returns the result. It panics if
+// there is a render error.
+func (m *model) mustRenderMarkdown(s string) string {
+	t, err := glamour.NewTermRenderer(
+		glamour.WithStyles(styles.DarkStyleConfig),
+		glamour.WithWordWrap(maxWidth),
+	)
+	if err != nil {
+		panic(err)
+	}
+
+	ret, err := t.Render(s)
+	if err != nil {
+		panic(err)
+	}
+
+	// Trimming space and re-adding the leading two spaces makes it easier to style the
+	// message with lipgloss.
+	return "  " + strings.TrimSpace(ret)
+}
