@@ -53,7 +53,7 @@ func initialModel(agent *agent.Agent) model {
 	// Input text area.
 	t := textarea.New()
 	t.DynamicHeight = true
-	t.Prompt = "> "
+	t.Prompt = ""
 	t.ShowLineNumbers = false
 
 	styles := t.Styles()
