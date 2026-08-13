@@ -53,6 +53,7 @@ func initialModel(agent *agent.Agent) model {
 	// Input text area.
 	t := textarea.New()
 	t.DynamicHeight = true
+	t.KeyMap.InsertNewline = key.NewBinding(key.WithKeys("shift+enter", "ctrl+m"), key.WithHelp("enter", "insert newline"))
 	t.Prompt = ""
 	t.ShowLineNumbers = false
 
