@@ -55,7 +55,7 @@ func main() {
 	}
 
 	client := &http.Client{Timeout: 10 * time.Minute}
-	a, _ := agent.NewAgent(backend.NewOpenAI(token, cfg.Endpoint, client), cfg.Model, skillsRegistry())
+	a, _ := agent.NewAgent(backend.NewOpenAI(token, cfg.Endpoint, client), *cfg, skillsRegistry())
 	t := tui.NewTui(a)
 	if err := t.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)

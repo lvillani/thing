@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"thing/internal/config"
 	"time"
 
 	"thing/internal/model"
@@ -107,7 +108,7 @@ func TestRun_StraightFinal(t *testing.T) {
 			PromptTokensDetails: &model.ResponseUsageDetails{CachedTokens: 3}},
 	}}}
 
-	a, _ := NewAgent(f, "fake-model")
+	a, _ := NewAgent(f, config.Config{Model: "fake-model"})
 	evs := collect(t, a.Run(context.Background(), model.NewUserMessage("hi")))
 
 	if len(evs) != 2 || evs[0].Kind != KindUser || evs[0].Message != "hi" ||
@@ -144,7 +145,7 @@ func TestRun_ToolRoundThenFinal(t *testing.T) {
 		finalResponse(model.Message{Role: model.MessageRoleAssistant, Content: "done"}),
 	}}
 
-	a, _ := NewAgent(f, "fake-model")
+	a, _ := NewAgent(f, config.Config{Model: "fake-model"})
 	a.Tools.Register(&fakeTool{out: "echoed"})
 
 	evs := collect(t, a.Run(context.Background(), model.NewUserMessage("please echo")))
@@ -185,7 +186,7 @@ func TestRun_ToolRoundThenFinal(t *testing.T) {
 }
 
 func TestRun_ModelError(t *testing.T) {
-	a, _ := NewAgent(&errModel{err: errors.New("boom")}, "fake-model")
+	a, _ := NewAgent(&errModel{err: errors.New("boom")}, config.Config{Model: "fake-model"})
 	evs := collect(t, a.Run(context.Background(), model.NewUserMessage("hi")))
 
 	if len(evs) != 2 || evs[0].Kind != KindUser || evs[0].Message != "hi" ||
@@ -196,7 +197,7 @@ func TestRun_ModelError(t *testing.T) {
 
 func TestRun_CancellationStopsLoop(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	a, _ := NewAgent(blockingModel{}, "fake-model")
+	a, _ := NewAgent(blockingModel{}, config.Config{Model: "fake-model"})
 	ch := a.Run(ctx, model.NewUserMessage("hi"))
 
 	// Cancel while the producer is (or soon will be) blocked inside Complete.
@@ -223,7 +224,7 @@ func TestRun_AssistantPrecedesToolCall(t *testing.T) {
 		finalResponse(model.Message{Role: model.MessageRoleAssistant, Content: "done"}),
 	}}
 
-	a, _ := NewAgent(f, "fake-model")
+	a, _ := NewAgent(f, config.Config{Model: "fake-model"})
 	a.Tools.Register(&fakeTool{out: "echoed"})
 	evs := collect(t, a.Run(context.Background(), model.NewUserMessage("please check")))
 
@@ -267,7 +268,7 @@ func TestRun_ToolErrorFeedsBackToModel(t *testing.T) {
 		finalResponse(model.Message{Role: model.MessageRoleAssistant, Content: "ok, noted the failure"}),
 	}}
 
-	a, _ := NewAgent(f, "fake-model")
+	a, _ := NewAgent(f, config.Config{Model: "fake-model"})
 	a.Tools.Register(&errTool{})
 
 	evs := collect(t, a.Run(context.Background(), model.NewUserMessage("trigger a failure")))
@@ -344,7 +345,7 @@ func TestRun_UsageTracksLiveContextNotAccumulatedThroughput(t *testing.T) {
 		prompts: []int{1000, 2000, 3000},
 		rounds:  []model.Message{toolMsg, toolMsg},
 	}
-	a, _ := NewAgent(g, "fake-model")
+	a, _ := NewAgent(g, config.Config{Model: "fake-model"})
 	a.Tools.Register(&fakeTool{out: "echoed"})
 
 	evs := collect(t, a.Run(context.Background(), model.NewUserMessage("grow")))
@@ -410,7 +411,7 @@ func TestActivateSkillNudgesModel(t *testing.T) {
 	skill, _ := reg.Get("git")
 
 	m := &recordingModel{}
-	a, _ := NewAgent(m, "fake-model", reg)
+	a, _ := NewAgent(m, config.Config{Model: "fake-model"}, reg)
 	pointer, err := a.ActivateSkill("git", "make a commit")
 	if err != nil {
 		t.Fatalf("ActivateSkill: %v", err)
@@ -431,7 +432,7 @@ func TestActivateSkillWithoutTask(t *testing.T) {
 	skill, _ := reg.Get("git")
 
 	m := &recordingModel{}
-	a, _ := NewAgent(m, "fake-model", reg)
+	a, _ := NewAgent(m, config.Config{Model: "fake-model"}, reg)
 	pointer, err := a.ActivateSkill("git", "")
 	if err != nil {
 		t.Fatalf("ActivateSkill: %v", err)
@@ -443,7 +444,7 @@ func TestActivateSkillWithoutTask(t *testing.T) {
 
 func TestActivateSkillUnknownName(t *testing.T) {
 	m := &recordingModel{}
-	a, _ := NewAgent(m, "fake-model", newSkillReg(t, "git", "---\nname: git\ndescription: x\n---\n"))
+	a, _ := NewAgent(m, config.Config{Model: "fake-model"}, newSkillReg(t, "git", "---\nname: git\ndescription: x\n---\n"))
 	_, err := a.ActivateSkill("does-not-exist", "")
 	if err == nil {
 		t.Fatal("expected error for unknown skill")
@@ -455,7 +456,7 @@ func TestActivateSkillUnknownName(t *testing.T) {
 
 func TestActivateSkillNoRegistry(t *testing.T) {
 	m := &recordingModel{}
-	a, _ := NewAgent(m, "fake-model")
+	a, _ := NewAgent(m, config.Config{Model: "fake-model"})
 	_, err := a.ActivateSkill("git", "")
 	if err == nil {
 		t.Fatal("expected error when no registry")
@@ -464,7 +465,7 @@ func TestActivateSkillNoRegistry(t *testing.T) {
 
 func TestRun_NormalInputPassesThroughUnchanged(t *testing.T) {
 	m := &recordingModel{}
-	a, _ := NewAgent(m, "fake-model", newSkillReg(t, "git", "---\nname: git\ndescription: x\n---\n"))
+	a, _ := NewAgent(m, config.Config{Model: "fake-model"}, newSkillReg(t, "git", "---\nname: git\ndescription: x\n---\n"))
 	// A "/skill:" command is passed through to Run unchanged: parsing is the TUI's
 	// job, the core's Run should never see it as a resolved pointer.
 	collect(t, a.Run(context.Background(), model.NewUserMessage("/skill:git make a commit")))
@@ -475,7 +476,7 @@ func TestRun_NormalInputPassesThroughUnchanged(t *testing.T) {
 
 func TestSkillsAccessor(t *testing.T) {
 	m := &recordingModel{}
-	a, _ := NewAgent(m, "fake-model", newSkillReg(t, "git", "---\nname: git\ndescription: do git things\n---\n"))
+	a, _ := NewAgent(m, config.Config{Model: "fake-model"}, newSkillReg(t, "git", "---\nname: git\ndescription: do git things\n---\n"))
 	cat := a.Skills()
 	if len(cat) != 1 || cat[0].Name != "git" || cat[0].Description != "do git things" {
 		t.Errorf("Skills() = %+v, want single git skill", cat)
@@ -484,7 +485,7 @@ func TestSkillsAccessor(t *testing.T) {
 
 func TestSkillsAccessorNoRegistry(t *testing.T) {
 	m := &recordingModel{}
-	a, _ := NewAgent(m, "fake-model")
+	a, _ := NewAgent(m, config.Config{Model: "fake-model"})
 	if cat := a.Skills(); len(cat) != 0 {
 		t.Errorf("Skills() = %+v, want empty with no registry", cat)
 	}
@@ -501,7 +502,7 @@ func TestNewAgent_HidesDisabledSkillFromSystemPrompt(t *testing.T) {
 		t.Fatalf("skills.New: %v", err)
 	}
 
-	a, _ := NewAgent(&errModel{err: errors.New("never called")}, "m", combined)
+	a, _ := NewAgent(&errModel{err: errors.New("never called")}, config.Config{Model: "m"}, combined)
 	dev := a.Chat.Messages[0].Content
 
 	if !strings.Contains(dev, "visible") || !strings.Contains(dev, "model may load") {
@@ -548,7 +549,7 @@ func containsName(cat []skills.Skill, name string) bool {
 // non-empty session id carried on the Chat (as serialized body metadata), so it can be
 // restored by future history save/reload.
 func TestNewAgentSeedsSessionIDOnChat(t *testing.T) {
-	a, _ := NewAgent(&errModel{err: errors.New("never called")}, "fake-model")
+	a, _ := NewAgent(&errModel{err: errors.New("never called")}, config.Config{Model: "fake-model"})
 	if a.Chat.SessionID == "" {
 		t.Fatal("NewAgent did not seed a session id on the conversation")
 	}

@@ -5,6 +5,7 @@ import (
 	"sync"
 	"testing"
 
+	"thing/internal/config"
 	"thing/internal/model"
 )
 
@@ -35,7 +36,7 @@ func (m *loopModel) Complete(_ context.Context, chat model.Chat) (*model.Respons
 }
 
 func TestRace_UsageReadWhileRunInFlight(t *testing.T) {
-	a, _ := NewAgent(&loopModel{n: 20000}, "fake-model")
+	a, _ := NewAgent(&loopModel{n: 20000}, config.Config{Model: "fake-model"})
 	a.Tools.Register(&fakeTool{out: "ok"})
 
 	ctx, cancel := context.WithCancel(context.Background())

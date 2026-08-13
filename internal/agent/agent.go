@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 
+	"thing/internal/config"
 	"thing/internal/model"
 	"thing/internal/skills"
 	"thing/internal/tools"
@@ -45,10 +46,11 @@ type Usage struct {
 	CachedTokensRatio float64
 }
 
-// NewAgent creates a new agent with the given model transport and model name. If a skill
-// registry is supplied and it has skills, their catalog is injected into the opening
-// prompt so the model knows what it can load; with no skills the catalog is omitted.
-func NewAgent(m Model, modelName string, reg ...*skills.Registry) (*Agent, error) {
+// NewAgent creates a new agent with the given model transport and configuration. If a
+// skill registry is supplied and it has skills, its catalog is injected into the
+// opening prompt so the model knows what it can load; with no skills the catalog is
+// omitted.
+func NewAgent(m Model, cfg config.Config, reg ...*skills.Registry) (*Agent, error) {
 	toolRegistry := tools.NewRegistry()
 
 	var skillsRegistry *skills.Registry
@@ -71,7 +73,7 @@ func NewAgent(m Model, modelName string, reg ...*skills.Registry) (*Agent, error
 		Model:  m,
 		skills: skillsRegistry,
 		Chat: model.Chat{
-			Model:     modelName,
+			Model:     cfg.Model,
 			SessionID: model.NewSessionID(),
 			Messages:  []model.Message{{Role: model.MessageRoleDeveloper, Content: developerPrompt}},
 			Tools:     toolRegistry.Tools(),
