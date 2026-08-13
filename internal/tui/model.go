@@ -96,10 +96,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			var cmd tea.Cmd
 			m, cmd = m.handleSend()
 			cmds = append(cmds, cmd)
+			return m, tea.Batch(cmds...)
 		case key.Matches(msg, m.keys.Cancel):
 			var cmd tea.Cmd
 			m, cmd = m.handleCancel()
 			cmds = append(cmds, cmd)
+			return m, tea.Batch(cmds...)
 		case key.Matches(msg, m.keys.Quit):
 			return m, tea.Quit
 		}
