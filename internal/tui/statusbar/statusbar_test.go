@@ -56,3 +56,17 @@ func TestViewShowsModel(t *testing.T) {
 		t.Errorf("View() = %q, want directory and model", got)
 	}
 }
+
+func TestViewShowsStats(t *testing.T) {
+	m := Model{directory: "~/thing", model: "gpt-4o"}
+	m.SetStats(5, Usage{
+		PromptTokens:      100,
+		CompletionTokens:  20,
+		CachedTokens:      80,
+		CachedTokensRatio: 0.8,
+	})
+
+	if got := m.View(); !strings.Contains(got, "5 messages · 120 tokens (100 in, 20 out) · 80.0% cache hit (80/100)") {
+		t.Errorf("View() = %q, want request statistics", got)
+	}
+}

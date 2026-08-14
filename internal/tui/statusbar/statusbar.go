@@ -4,6 +4,7 @@
 package statusbar
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,8 +17,18 @@ var style = lipgloss.NewStyle().Faint(true)
 
 // Model represents the state of the status bar.
 type Model struct {
-	directory string
-	model     string
+	directory    string
+	model        string
+	messageCount int
+	usage        Usage
+}
+
+// Usage contains the token statistics for the latest request.
+type Usage struct {
+	PromptTokens      int
+	CompletionTokens  int
+	CachedTokens      int
+	CachedTokensRatio float64
 }
 
 // New creates a status bar that shows the current working directory and model name.
@@ -46,6 +57,12 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	return m, nil
 }
 
+// SetStats updates the chat and request statistics shown by the statusbar.
+func (m *Model) SetStats(messageCount int, usage Usage) {
+	m.messageCount = messageCount
+	m.usage = usage
+}
+
 // View implements the tea.Model interface. It renders the program's UI, which can be
 // a string or a Layer. The view is rendered after every Update.
 func (m Model) View() string {
@@ -54,7 +71,22 @@ func (m Model) View() string {
 		parts = append(parts, m.model)
 	}
 
-	return style.Render(strings.Join(parts, " · "))
+	return style.Render(strings.Join(parts, " · ") + "\n" + m.usageSummary())
+}
+
+// usageSummary formats the current conversation and request statistics.
+func (m Model) usageSummary() string {
+	totalTokens := m.usage.PromptTokens + m.usage.CompletionTokens
+	return fmt.Sprintf(
+		"%d messages · %d tokens (%d in, %d out) · %.1f%% cache hit (%d/%d)",
+		m.messageCount,
+		totalTokens,
+		m.usage.PromptTokens,
+		m.usage.CompletionTokens,
+		m.usage.CachedTokensRatio*100,
+		m.usage.CachedTokens,
+		m.usage.PromptTokens,
+	)
 }
 
 // shortenHome replaces the home directory prefix with ~.

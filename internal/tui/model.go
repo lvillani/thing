@@ -139,6 +139,7 @@ func (m model) View() tea.View {
 		parts = append(parts, m.spinner.View()+" Working...")
 	}
 
+	m.statusbar.SetStats(len(m.agent.Chat.Messages), toStatusbarUsage(m.agent.Usage()))
 	parts = append(parts, textareaStyle.Render(m.textarea.View()))
 	parts = append(parts, m.statusbar.View())
 	parts = append(parts, m.help.View(m.keys))
@@ -283,4 +284,14 @@ func (m *model) mustRenderMarkdownWithStyle(s string, style ansi.StyleConfig) st
 	// Trimming space and re-adding the leading two spaces makes it easier to style the
 	// message with lipgloss.
 	return "  " + strings.TrimSpace(ret)
+}
+
+// toStatusbarUsage adapts agent usage data to the statusbar component.
+func toStatusbarUsage(u agent.Usage) statusbar.Usage {
+	return statusbar.Usage{
+		PromptTokens:      u.PromptTokens,
+		CompletionTokens:  u.CompletionTokens,
+		CachedTokens:      u.CachedTokens,
+		CachedTokensRatio: u.CachedTokensRatio,
+	}
 }
