@@ -72,7 +72,7 @@ func initialModel(agent *agent.Agent) model {
 	return model{
 		agent:     agent,
 		spinner:   s,
-		statusbar: statusbar.New(),
+		statusbar: statusbar.New(agent.Chat.Model),
 		help:      help.New(),
 		textarea:  t,
 		keys:      defaultKeyMap(),

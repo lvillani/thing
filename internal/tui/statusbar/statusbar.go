@@ -17,16 +17,20 @@ var style = lipgloss.NewStyle().Faint(true)
 // Model represents the state of the status bar.
 type Model struct {
 	directory string
+	model     string
 }
 
-// New creates a status bar that shows the current working directory.
-func New() Model {
+// New creates a status bar that shows the current working directory and model name.
+func New(modelName string) Model {
 	directory, err := os.Getwd()
 	if err != nil {
 		directory = ""
 	}
 
-	return Model{directory: shortenHome(directory, homeDirectory())}
+	return Model{
+		directory: shortenHome(directory, homeDirectory()),
+		model:     modelName,
+	}
 }
 
 // Init implements the tea.Model interface. It is the first function that will be
@@ -45,7 +49,12 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 // View implements the tea.Model interface. It renders the program's UI, which can be
 // a string or a Layer. The view is rendered after every Update.
 func (m Model) View() string {
-	return style.Render(m.directory)
+	parts := []string{m.directory}
+	if m.model != "" {
+		parts = append(parts, m.model)
+	}
+
+	return style.Render(strings.Join(parts, " · "))
 }
 
 // shortenHome replaces the home directory prefix with ~.

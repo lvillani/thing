@@ -2,7 +2,10 @@
 
 package statusbar
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestShortenHome(t *testing.T) {
 	tests := []struct {
@@ -43,5 +46,13 @@ func TestShortenHome(t *testing.T) {
 				t.Errorf("shortenHome(%q, %q) = %q, want %q", tt.directory, tt.home, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestViewShowsModel(t *testing.T) {
+	m := Model{directory: "~/Development/thing", model: "gpt-4o"}
+
+	if got := m.View(); !strings.Contains(got, "~/Development/thing · gpt-4o") {
+		t.Errorf("View() = %q, want directory and model", got)
 	}
 }
