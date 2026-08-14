@@ -233,6 +233,8 @@ func (m *model) renderMessageEvent(event agent.Event) string {
 func (m *model) renderToolCallEvent(event agent.Event) string {
 	var args struct {
 		Path       string `json:"path"`
+		Directory  string `json:"directory"`
+		Pattern    string `json:"pattern"`
 		Command    string `json:"command"`
 		Timeout    int    `json:"timeout"`
 		OldText    string `json:"oldText"`
@@ -255,6 +257,11 @@ func (m *model) renderToolCallEvent(event agent.Event) string {
 		if args.ReplaceAll {
 			message = fmt.Sprintf("edit %s (all occurrences)\n```diff\n%s\n```", args.Path, renderEditDiff(args.OldText, args.NewText))
 		}
+		return toolMessageStyle.Render(m.mustRenderToolCallMarkdown(message))
+	}
+
+	if event.Tool == "glob" {
+		message := fmt.Sprintf("glob %s %s", args.Directory, args.Pattern)
 		return toolMessageStyle.Render(m.mustRenderToolCallMarkdown(message))
 	}
 
