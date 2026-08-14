@@ -6,6 +6,6 @@ IFS=$'\n\t'
 HERE="$(cd "$(dirname "$0")" && pwd)"
 TOP_LEVEL="$(cd "$HERE/../" && pwd)"
 
-cd "$TOP_LEVEL"
-
-go run .
+mkdir -p "$TOP_LEVEL/.build"
+go -C "$TOP_LEVEL" build -o "$TOP_LEVEL/.build/thing" .
+"$TOP_LEVEL/.build/thing" "$@"
