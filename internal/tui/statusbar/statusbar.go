@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"charm.land/bubbles/v2/progress"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 )
@@ -17,10 +18,12 @@ var style = lipgloss.NewStyle().Faint(true)
 
 // Model represents the state of the status bar.
 type Model struct {
-	directory    string
-	model        string
-	messageCount int
-	usage        Usage
+	directory       string
+	model           string
+	messageCount    int
+	usage           Usage
+	contextWindow   int64
+	contextProgress progress.Model
 }
 
 // Usage contains the token statistics for the latest request.
@@ -32,15 +35,21 @@ type Usage struct {
 }
 
 // New creates a status bar that shows the current working directory and model name.
-func New(modelName string) Model {
+func New(modelName string, contextWindow int64) Model {
 	directory, err := os.Getwd()
 	if err != nil {
 		directory = ""
 	}
 
 	return Model{
-		directory: shortenHome(directory, homeDirectory()),
-		model:     modelName,
+		directory:     shortenHome(directory, homeDirectory()),
+		model:         modelName,
+		contextWindow: contextWindow,
+		contextProgress: progress.New(
+			progress.WithColors(lipgloss.BrightBlack, lipgloss.BrightBlack),
+			progress.WithoutPercentage(),
+			progress.WithWidth(20),
+		),
 	}
 }
 
@@ -71,22 +80,32 @@ func (m Model) View() string {
 		parts = append(parts, m.model)
 	}
 
-	return style.Render(strings.Join(parts, " · ") + "\n" + m.usageSummary())
+	return style.Render(strings.Join(parts, " · ")) + "\n" + m.usageSummary()
 }
 
 // usageSummary formats the current conversation and request statistics.
 func (m Model) usageSummary() string {
-	totalTokens := m.usage.PromptTokens + m.usage.CompletionTokens
-	return fmt.Sprintf(
-		"%d messages · %d tokens (%d in, %d out) · %.1f%% cache hit (%d/%d)",
+	contextUsage := "context unknown"
+	if m.contextWindow > 0 {
+		percent := float64(m.usage.PromptTokens) / float64(m.contextWindow)
+		contextUsage = m.contextProgress.ViewAs(percent) + style.Render(fmt.Sprintf(" %s/%s", formatTokens(int64(m.usage.PromptTokens)), formatTokens(m.contextWindow)))
+	}
+	text := fmt.Sprintf(
+		" · %d messages · %.1f%% cache hit",
 		m.messageCount,
-		totalTokens,
-		m.usage.PromptTokens,
-		m.usage.CompletionTokens,
 		m.usage.CachedTokensRatio*100,
-		m.usage.CachedTokens,
-		m.usage.PromptTokens,
 	)
+	return contextUsage + style.Render(text)
+}
+
+func formatTokens(tokens int64) string {
+	if tokens >= 1_000_000 {
+		return fmt.Sprintf("%.0fM", float64(tokens)/1_000_000)
+	}
+	if tokens >= 1000 {
+		return fmt.Sprintf("%.1fk", float64(tokens)/1000)
+	}
+	return fmt.Sprintf("%d", tokens)
 }
 
 // shortenHome replaces the home directory prefix with ~.

@@ -19,6 +19,7 @@ import (
 	"charm.land/bubbles/v2/spinner"
 	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
+	"charm.land/catwalk/pkg/catwalk"
 	"charm.land/glamour/v2"
 	"charm.land/glamour/v2/ansi"
 	"charm.land/glamour/v2/styles"
@@ -72,7 +73,7 @@ func initialModel(agent *agent.Agent) model {
 	return model{
 		agent:     agent,
 		spinner:   s,
-		statusbar: statusbar.New(agent.Chat.Model),
+		statusbar: statusbar.New(agent.Chat.Model, modelContextWindow(agent.ModelInfo)),
 		help:      help.New(),
 		textarea:  t,
 		keys:      defaultKeyMap(),
@@ -284,6 +285,14 @@ func (m *model) mustRenderMarkdownWithStyle(s string, style ansi.StyleConfig) st
 	// Trimming space and re-adding the leading two spaces makes it easier to style the
 	// message with lipgloss.
 	return "  " + strings.TrimSpace(ret)
+}
+
+// modelContextWindow returns the context window size from model metadata.
+func modelContextWindow(info *catwalk.Model) int64 {
+	if info == nil {
+		return 0
+	}
+	return info.ContextWindow
 }
 
 // toStatusbarUsage adapts agent usage data to the statusbar component.

@@ -57,8 +57,29 @@ func TestViewShowsModel(t *testing.T) {
 	}
 }
 
+func TestFormatTokens(t *testing.T) {
+	tests := []struct {
+		tokens int64
+		want   string
+	}{
+		{tokens: 999, want: "999"},
+		{tokens: 1_000, want: "1.0k"},
+		{tokens: 1_000_000, want: "1M"},
+		{tokens: 2_000_000, want: "2M"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.want, func(t *testing.T) {
+			if got := formatTokens(tt.tokens); got != tt.want {
+				t.Errorf("formatTokens(%d) = %q, want %q", tt.tokens, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestViewShowsStats(t *testing.T) {
-	m := Model{directory: "~/thing", model: "gpt-4o"}
+	m := New("gpt-4o", 1000)
+	m.directory = "~/thing"
 	m.SetStats(5, Usage{
 		PromptTokens:      100,
 		CompletionTokens:  20,
@@ -66,7 +87,7 @@ func TestViewShowsStats(t *testing.T) {
 		CachedTokensRatio: 0.8,
 	})
 
-	if got := m.View(); !strings.Contains(got, "5 messages · 120 tokens (100 in, 20 out) · 80.0% cache hit (80/100)") {
+	if got := m.View(); !strings.Contains(got, "5 messages · 80.0% cache hit") {
 		t.Errorf("View() = %q, want request statistics", got)
 	}
 }
