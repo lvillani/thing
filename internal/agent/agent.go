@@ -78,10 +78,11 @@ func NewAgent(m Model, cfg config.Config, reg ...*skills.Registry) (*Agent, erro
 		ModelInfo: findModel(cfg.Model),
 		skills:    skillsRegistry,
 		Chat: model.Chat{
-			Model:     cfg.Model,
-			SessionID: model.NewSessionID(),
-			Messages:  []model.Message{{Role: model.MessageRoleDeveloper, Content: developerPrompt}},
-			Tools:     toolRegistry.Tools(),
+			Model:           cfg.Model,
+			ReasoningEffort: cfg.ReasoningEffort,
+			SessionID:       model.NewSessionID(),
+			Messages:        []model.Message{{Role: model.MessageRoleDeveloper, Content: developerPrompt}},
+			Tools:           toolRegistry.Tools(),
 		},
 	}, nil
 }

@@ -12,6 +12,30 @@ import (
 // MessageRole represents the role of a message in a chat conversation.
 type MessageRole string
 
+// ReasoningEffort controls how many reasoning tokens the model may use.
+// OpenAI defines these values for reasoning-capable models.
+type ReasoningEffort string
+
+const (
+	ReasoningEffortMinimal ReasoningEffort = "minimal"
+	ReasoningEffortLow     ReasoningEffort = "low"
+	ReasoningEffortMedium  ReasoningEffort = "medium"
+	ReasoningEffortHigh    ReasoningEffort = "high"
+	ReasoningEffortXHigh   ReasoningEffort = "xhigh"
+	ReasoningEffortMax     ReasoningEffort = "max"
+)
+
+// Valid reports whether the reasoning effort is an OpenAI-supported value.
+func (r ReasoningEffort) Valid() bool {
+	switch r {
+	case ReasoningEffortMinimal, ReasoningEffortLow, ReasoningEffortMedium,
+		ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax:
+		return true
+	default:
+		return false
+	}
+}
+
 const (
 	MessageRoleDeveloper MessageRole = "developer" // Developer-provided instructions that the model should follow.
 	MessageRoleUser      MessageRole = "user"      // Messages sent by an end user.
@@ -32,10 +56,11 @@ const (
 // together to maximize cache hits. Keeping it here means it serializes with the
 // conversation and so is restored naturally when deserializing it.
 type Chat struct {
-	SessionID string    `json:"session_id,omitempty"`
-	Model     string    `json:"model"`
-	Tools     []Tool    `json:"tools"`
-	Messages  []Message `json:"messages"`
+	SessionID       string          `json:"session_id,omitempty"`
+	Model           string          `json:"model"`
+	ReasoningEffort ReasoningEffort `json:"reasoning_effort,omitempty"`
+	Tools           []Tool          `json:"tools"`
+	Messages        []Message       `json:"messages"`
 }
 
 // NewSessionID returns a random UUIDv4 used to identify a conversation.
