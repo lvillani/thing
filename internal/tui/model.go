@@ -19,6 +19,7 @@ import (
 	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/glamour/v2"
+	"charm.land/glamour/v2/ansi"
 	"charm.land/glamour/v2/styles"
 	"charm.land/lipgloss/v2"
 )
@@ -224,26 +225,46 @@ func (m *model) renderMessageEvent(event agent.Event) string {
 
 // renderToolCallEvent renders a tool call event to a string.
 func (m *model) renderToolCallEvent(event agent.Event) string {
-	input := string(event.ToolInput)
+	var args struct {
+		Path    string `json:"path"`
+		Command string `json:"command"`
+		Timeout int    `json:"timeout"`
+	}
+	_ = json.Unmarshal([]byte(event.ToolInput), &args)
 
-	var toolArgs map[string]any
-	err := json.Unmarshal([]byte(event.ToolInput), &toolArgs)
-	if err == nil {
-		if arg, ok := toolArgs["path"]; ok {
-			input = arg.(string)
-		} else if arg, ok := toolArgs["command"]; ok {
-			input = arg.(string)
+	if event.Tool == "bash" {
+		name := event.Tool
+		if args.Timeout > 0 {
+			name = fmt.Sprintf("%s (timeout: %ds)", name, args.Timeout)
 		}
+		message := fmt.Sprintf("%s\n```bash\n%s\n```", name, args.Command)
+		return toolMessageStyle.Render(m.mustRenderToolCallMarkdown(message))
 	}
 
-	return toolMessageStyle.Render(fmt.Sprintf("  %s %s", event.Tool, input))
+	input := args.Path
+	if input == "" {
+		input = string(event.ToolInput)
+	}
+	return toolMessageStyle.Render(m.mustRenderToolCallMarkdown(fmt.Sprintf("%s %s", event.Tool, input)))
 }
 
-// mustRenderMarkdown renders a string as markdown and returns the result. It panics if
-// there is a render error.
+// mustRenderMarkdown renders a string as markdown using the default style. It panics
+// if there is a render error.
 func (m *model) mustRenderMarkdown(s string) string {
+	return m.mustRenderMarkdownWithStyle(s, styles.DarkStyleConfig)
+}
+
+// mustRenderToolCallMarkdown renders a tool call as markdown without colors. It panics
+// if there is a render error.
+func (m *model) mustRenderToolCallMarkdown(s string) string {
+	return m.mustRenderMarkdownWithStyle(s, styles.NoTTYStyleConfig)
+}
+
+// mustRenderMarkdownWithStyle renders a string as markdown with the given style. It
+// panics if there is a render error.
+func (m *model) mustRenderMarkdownWithStyle(s string, style ansi.StyleConfig) string {
 	t, err := glamour.NewTermRenderer(
-		glamour.WithStyles(styles.DarkStyleConfig),
+		glamour.WithStyles(style),
 		glamour.WithWordWrap(maxWidth),
 	)
 	if err != nil {
