@@ -10,6 +10,10 @@
 
 </div>
 
+<p align="center">
+  <img src="screenshot.png" alt="thing screenshot">
+</p>
+
 ---
 
 ## 🧭 Why this exists
