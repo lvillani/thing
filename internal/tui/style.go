@@ -4,11 +4,6 @@ package tui
 
 import "charm.land/lipgloss/v2"
 
-// maxWidth is the maximum width of the UI. It was taken from Python black's default
-// line length. I usually use wide monitors and prose becomes too long too read with no
-// wrapping.
-const maxWidth = 88
-
 // textareaPadding is the horizontal padding around the text area.
 const textareaPadding = 1
 

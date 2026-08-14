@@ -38,6 +38,7 @@ type model struct {
 	// State
 	isWorking bool
 	cancel    context.CancelFunc
+	width     int
 
 	// Views
 	spinner   spinner.Model
@@ -63,8 +64,6 @@ func initialModel(agent *agent.Agent) model {
 
 	styles := t.Styles()
 	styles.Focused.CursorLine = styles.Focused.CursorLine.UnsetBackground()
-
-	t.MaxWidth = maxWidth - len(t.Prompt) - 2*textareaPadding
 
 	t.Focus()
 	t.SetHeight(1)
@@ -94,7 +93,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.textarea.SetWidth(msg.Width)
+		m.width = msg.Width
+		m.textarea.SetWidth(msg.Width - textareaStyle.GetHorizontalFrameSize())
 		m.help.SetWidth(msg.Width)
 	case tea.KeyPressMsg:
 		switch {
@@ -299,10 +299,12 @@ func (m *model) mustRenderToolCallMarkdown(s string) string {
 // mustRenderMarkdownWithStyle renders a string as markdown with the given style. It
 // panics if there is a render error.
 func (m *model) mustRenderMarkdownWithStyle(s string, style ansi.StyleConfig) string {
-	t, err := glamour.NewTermRenderer(
-		glamour.WithStyles(style),
-		glamour.WithWordWrap(maxWidth),
-	)
+	options := []glamour.TermRendererOption{glamour.WithStyles(style)}
+	if m.width > 0 {
+		options = append(options, glamour.WithWordWrap(m.width))
+	}
+
+	t, err := glamour.NewTermRenderer(options...)
 	if err != nil {
 		panic(err)
 	}
