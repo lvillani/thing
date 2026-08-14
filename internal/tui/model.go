@@ -12,6 +12,7 @@ import (
 
 	"thing/internal/agent"
 	thingmodel "thing/internal/model"
+	"thing/internal/tui/statusbar"
 
 	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
@@ -38,10 +39,11 @@ type model struct {
 	cancel    context.CancelFunc
 
 	// Views
-	spinner  spinner.Model
-	textarea textarea.Model
-	help     help.Model
-	keys     keyMap
+	spinner   spinner.Model
+	textarea  textarea.Model
+	statusbar statusbar.Model
+	help      help.Model
+	keys      keyMap
 }
 
 // initialModel returns the initial state of the application.
@@ -68,11 +70,12 @@ func initialModel(agent *agent.Agent) model {
 	t.SetStyles(styles)
 
 	return model{
-		agent:    agent,
-		spinner:  s,
-		help:     help.New(),
-		textarea: t,
-		keys:     defaultKeyMap(),
+		agent:     agent,
+		spinner:   s,
+		statusbar: statusbar.New(),
+		help:      help.New(),
+		textarea:  t,
+		keys:      defaultKeyMap(),
 	}
 }
 
@@ -137,6 +140,7 @@ func (m model) View() tea.View {
 	}
 
 	parts = append(parts, textareaStyle.Render(m.textarea.View()))
+	parts = append(parts, m.statusbar.View())
 	parts = append(parts, m.help.View(m.keys))
 
 	return tea.NewView(strings.Join(parts, "\n"))
