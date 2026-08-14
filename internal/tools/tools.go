@@ -32,6 +32,7 @@ func NewRegistry() *Registry {
 	r.Register(&bash{})
 	r.Register(&read{})
 	r.Register(&write{})
+	r.Register(&edit{})
 
 	return &r
 }
