@@ -73,7 +73,7 @@ func initialModel(agent *agent.Agent) model {
 	return model{
 		agent:     agent,
 		spinner:   s,
-		statusbar: statusbar.New(agent.Chat.Model, modelContextWindow(agent.ModelInfo)),
+		statusbar: statusbar.New(agent.Chat.Model, string(agent.Chat.ReasoningEffort), modelContextWindow(agent.ModelInfo)),
 		help:      help.New(),
 		textarea:  t,
 		keys:      defaultKeyMap(),

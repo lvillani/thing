@@ -50,9 +50,9 @@ func TestShortenHome(t *testing.T) {
 }
 
 func TestViewShowsModel(t *testing.T) {
-	m := Model{directory: "~/Development/thing", model: "gpt-4o"}
+	m := Model{directory: "~/Development/thing", model: "gpt-4o", reasoningEffort: "high"}
 
-	if got := m.View(); !strings.Contains(got, "~/Development/thing · gpt-4o") {
+	if got := m.View(); !strings.Contains(got, "~/Development/thing · gpt-4o · high") {
 		t.Errorf("View() = %q, want directory and model", got)
 	}
 }
@@ -78,7 +78,7 @@ func TestFormatTokens(t *testing.T) {
 }
 
 func TestViewShowsStats(t *testing.T) {
-	m := New("gpt-4o", 1000)
+	m := New("gpt-4o", "high", 1000)
 	m.directory = "~/thing"
 	m.SetStats(5, Usage{
 		PromptTokens:      100,

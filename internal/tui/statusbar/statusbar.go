@@ -20,6 +20,7 @@ var style = lipgloss.NewStyle().Faint(true)
 type Model struct {
 	directory       string
 	model           string
+	reasoningEffort string
 	messageCount    int
 	usage           Usage
 	contextWindow   int64
@@ -34,17 +35,19 @@ type Usage struct {
 	CachedTokensRatio float64
 }
 
-// New creates a status bar that shows the current working directory and model name.
-func New(modelName string, contextWindow int64) Model {
+// New creates a status bar that shows the current working directory, model name, and
+// reasoning effort.
+func New(modelName, reasoningEffort string, contextWindow int64) Model {
 	directory, err := os.Getwd()
 	if err != nil {
 		directory = ""
 	}
 
 	return Model{
-		directory:     shortenHome(directory, homeDirectory()),
-		model:         modelName,
-		contextWindow: contextWindow,
+		directory:       shortenHome(directory, homeDirectory()),
+		model:           modelName,
+		reasoningEffort: reasoningEffort,
+		contextWindow:   contextWindow,
 		contextProgress: progress.New(
 			progress.WithColors(lipgloss.BrightBlack, lipgloss.BrightBlack),
 			progress.WithoutPercentage(),
@@ -78,6 +81,9 @@ func (m Model) View() string {
 	parts := []string{m.directory}
 	if m.model != "" {
 		parts = append(parts, m.model)
+	}
+	if m.reasoningEffort != "" {
+		parts = append(parts, m.reasoningEffort)
 	}
 
 	return style.Render(strings.Join(parts, " · ")) + "\n" + m.usageSummary()
