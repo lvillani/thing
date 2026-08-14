@@ -554,3 +554,29 @@ func TestNewAgentSeedsSessionIDOnChat(t *testing.T) {
 		t.Fatal("NewAgent did not seed a session id on the conversation")
 	}
 }
+
+func TestNewAgentLoadsEmbeddedModelInfo(t *testing.T) {
+	a, err := NewAgent(&errModel{err: errors.New("never called")}, config.Config{Model: "gpt-4o"})
+	if err != nil {
+		t.Fatalf("NewAgent returned error: %v", err)
+	}
+	if a.ModelInfo == nil {
+		t.Fatal("NewAgent did not load model metadata")
+	}
+	if a.ModelInfo.ID != "gpt-4o" {
+		t.Errorf("ModelInfo.ID = %q, want %q", a.ModelInfo.ID, "gpt-4o")
+	}
+	if a.ModelInfo.ContextWindow == 0 {
+		t.Error("ModelInfo.ContextWindow = 0, want model context metadata")
+	}
+}
+
+func TestNewAgentAllowsUnknownModel(t *testing.T) {
+	a, err := NewAgent(&errModel{err: errors.New("never called")}, config.Config{Model: "unknown-model"})
+	if err != nil {
+		t.Fatalf("NewAgent returned error: %v", err)
+	}
+	if a.ModelInfo != nil {
+		t.Errorf("ModelInfo = %#v, want nil for unknown model", a.ModelInfo)
+	}
+}

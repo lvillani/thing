@@ -10,6 +10,9 @@ import (
 	"strings"
 	"sync"
 
+	"charm.land/catwalk/pkg/catwalk"
+	"charm.land/catwalk/pkg/embedded"
+
 	"thing/internal/config"
 	"thing/internal/model"
 	"thing/internal/skills"
@@ -25,10 +28,11 @@ type Model interface {
 
 // Agent represents an agent. It holds the conversation state.
 type Agent struct {
-	Tools  *tools.Registry
-	Model  Model
-	Chat   model.Chat
-	skills *skills.Registry // retained so run can resolve /skill:<name> activation
+	Tools     *tools.Registry
+	Model     Model
+	ModelInfo *catwalk.Model
+	Chat      model.Chat
+	skills    *skills.Registry // retained so run can resolve /skill:<name> activation
 
 	usageMu sync.RWMutex
 	usage   Usage
@@ -69,9 +73,10 @@ func NewAgent(m Model, cfg config.Config, reg ...*skills.Registry) (*Agent, erro
 	}
 
 	return &Agent{
-		Tools:  toolRegistry,
-		Model:  m,
-		skills: skillsRegistry,
+		Tools:     toolRegistry,
+		Model:     m,
+		ModelInfo: findModel(cfg.Model),
+		skills:    skillsRegistry,
 		Chat: model.Chat{
 			Model:     cfg.Model,
 			SessionID: model.NewSessionID(),
@@ -252,4 +257,17 @@ func (a *Agent) Skills() []skills.Skill {
 		return nil
 	}
 	return a.skills.Catalog()
+}
+
+// findModel returns metadata for modelID from Catwalk's embedded catalog.
+// It returns nil when the model is not in the offline catalog.
+func findModel(modelID string) *catwalk.Model {
+	for _, provider := range embedded.GetAll() {
+		for i := range provider.Models {
+			if provider.Models[i].ID == modelID {
+				return &provider.Models[i]
+			}
+		}
+	}
+	return nil
 }
