@@ -19,17 +19,17 @@ import (
 	"thing/internal/tools"
 )
 
-// Model is the seam to a model transport: something that can send a conversation and
-// return the model's reply. The core depends on this interface, never on HTTP or a
+// Transport is the seam to a model transport: something that can send a conversation
+// and return the model's reply. The core depends on this interface, never on HTTP or a
 // concrete backend.
-type Model interface {
+type Transport interface {
 	Complete(ctx context.Context, chat model.Chat) (*model.Response, error)
 }
 
 // Agent represents an agent. It holds the conversation state.
 type Agent struct {
 	Tools     *tools.Registry
-	Model     Model
+	Transport Transport
 	ModelInfo *catwalk.Model
 	Chat      model.Chat
 	skills    *skills.Registry // retained so run can resolve /skill:<name> activation
@@ -54,7 +54,7 @@ type Usage struct {
 // skill registry is supplied and it has skills, its catalog is injected into the
 // opening prompt so the model knows what it can load; with no skills the catalog is
 // omitted.
-func NewAgent(m Model, cfg config.Config, reg ...*skills.Registry) (*Agent, error) {
+func NewAgent(t Transport, cfg config.Config, reg ...*skills.Registry) (*Agent, error) {
 	toolRegistry := tools.NewRegistry()
 
 	var skillsRegistry *skills.Registry
@@ -74,7 +74,7 @@ func NewAgent(m Model, cfg config.Config, reg ...*skills.Registry) (*Agent, erro
 
 	return &Agent{
 		Tools:     toolRegistry,
-		Model:     m,
+		Transport: t,
 		ModelInfo: findModel(cfg.Model),
 		skills:    skillsRegistry,
 		Chat: model.Chat{
@@ -120,7 +120,7 @@ func (a *Agent) run(ctx context.Context, message *model.Message, events chan<- E
 	a.emit(ctx, events, Event{Kind: KindUser, Message: message.Content})
 
 	for {
-		response, err := a.Model.Complete(ctx, a.Chat)
+		response, err := a.Transport.Complete(ctx, a.Chat)
 		if err != nil {
 			a.emit(ctx, events, Event{Kind: KindError, Message: err.Error()})
 			return
