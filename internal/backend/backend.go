@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"thing/internal/model"
 )
@@ -20,29 +21,33 @@ import (
 type OpenAI struct {
 	token    string
 	endpoint string
-	client   *http.Client
+	timeout  time.Duration
 }
 
-// NewOpenAI creates a transport for the given endpoint and bearer token.
-func NewOpenAI(token, endpoint string, client *http.Client) *OpenAI {
-	return &OpenAI{token: token, endpoint: endpoint, client: client}
+// NewOpenAI creates a transport for the given endpoint, bearer token, and request
+// timeout. The timeout applies to each model request.
+func NewOpenAI(token, endpoint string, timeout time.Duration) *OpenAI {
+	return &OpenAI{token: token, endpoint: endpoint, timeout: timeout}
 }
 
 // Complete sends the conversation to the model and returns the assistant's reply.
 func (o *OpenAI) Complete(ctx context.Context, chat model.Chat) (*model.Response, error) {
+	requestCtx, cancel := context.WithTimeout(ctx, o.timeout)
+	defer cancel()
+
 	body, err := json.Marshal(chat)
 	if err != nil {
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", o.endpoint, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(requestCtx, http.MethodPost, o.endpoint, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+o.token)
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := o.client.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("send request: %w", err)
 	}

@@ -38,6 +38,7 @@ its own evolution, but nothing lands blindly.
 ```toml
 model = "your-model"
 endpoint = "https://your-provider.example/v1/chat/completions"
+connection_timeout = 600 # optional; seconds per model request
 reasoning_effort = "medium" # optional
 ```
 

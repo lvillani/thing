@@ -4,7 +4,6 @@ package main
 
 import (
 	"fmt"
-	"net/http"
 	"os"
 	"path/filepath"
 	"time"
@@ -54,8 +53,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	client := &http.Client{Timeout: 10 * time.Minute}
-	a, _ := agent.NewAgent(backend.NewOpenAI(token, cfg.Endpoint, client), *cfg, skillsRegistry())
+	timeout := time.Duration(cfg.ConnectionTimeout) * time.Second
+	a, _ := agent.NewAgent(backend.NewOpenAI(token, cfg.Endpoint, timeout), *cfg, skillsRegistry())
 	t := tui.NewTui(a)
 	if err := t.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)

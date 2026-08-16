@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"thing/internal/model"
 )
@@ -29,7 +30,7 @@ func TestOpenAIComplete_SendsRequestAndDecodes(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	o := NewOpenAI("secret", srv.URL, srv.Client())
+	o := NewOpenAI("secret", srv.URL, time.Minute)
 	resp, err := o.Complete(context.Background(), model.Chat{Model: "m", Messages: []model.Message{{Role: model.MessageRoleUser, Content: "hi"}}})
 	if err != nil {
 		t.Fatalf("Complete returned error: %v", err)
@@ -58,7 +59,7 @@ func TestOpenAIComplete_NonOKStatusReturnsError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	o := NewOpenAI("secret", srv.URL, srv.Client())
+	o := NewOpenAI("secret", srv.URL, time.Minute)
 	_, err := o.Complete(context.Background(), model.Chat{})
 	if err == nil {
 		t.Fatal("expected error for non-200 response, got nil")
