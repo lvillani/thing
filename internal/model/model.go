@@ -25,8 +25,8 @@ const (
 	ReasoningEffortMax     ReasoningEffort = "max"
 )
 
-// Valid reports whether the reasoning effort is an OpenAI-supported value.
-func (r ReasoningEffort) Valid() bool {
+// IsValid reports whether the reasoning effort is an OpenAI-supported value.
+func (r ReasoningEffort) IsValid() bool {
 	switch r {
 	case ReasoningEffortMinimal, ReasoningEffortLow, ReasoningEffortMedium,
 		ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax:

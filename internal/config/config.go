@@ -37,7 +37,7 @@ func Load() (*Config, error) {
 	if err := toml.NewDecoder(f).Decode(&config); err != nil {
 		return nil, err
 	}
-	if config.ReasoningEffort != "" && !config.ReasoningEffort.Valid() {
+	if config.ReasoningEffort != "" && !config.ReasoningEffort.IsValid() {
 		return nil, fmt.Errorf("invalid reasoning_effort %q: want minimal, low, medium, high, xhigh, or max", config.ReasoningEffort)
 	}
 
