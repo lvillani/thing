@@ -9,11 +9,8 @@ import (
 	"fmt"
 )
 
-// MessageRole represents the role of a message in a chat conversation.
-type MessageRole string
-
-// ReasoningEffort controls how many reasoning tokens the model may use.
-// OpenAI defines these values for reasoning-capable models.
+// ReasoningEffort controls how many reasoning tokens the model may use. OpenAI defines
+// these values for reasoning-capable models.
 type ReasoningEffort string
 
 const (
@@ -36,6 +33,9 @@ func (r ReasoningEffort) IsValid() bool {
 	}
 }
 
+// MessageRole represents the role of a message in a chat conversation.
+type MessageRole string
+
 const (
 	MessageRoleDeveloper MessageRole = "developer" // Developer-provided instructions that the model should follow.
 	MessageRoleUser      MessageRole = "user"      // Messages sent by an end user.
@@ -43,12 +43,32 @@ const (
 	MessageRoleTool      MessageRole = "tool"      // Messages sent by a tool in response to a model's tool call.
 )
 
+// IsValid reports whether the message role is an OpenAI-supported value.
+func (r MessageRole) IsValid() bool {
+	switch r {
+	case MessageRoleDeveloper, MessageRoleUser, MessageRoleAssistant, MessageRoleTool:
+		return true
+	default:
+		return false
+	}
+}
+
 // ToolType represents the type of a tool used in the chat conversation.
 type ToolType string
 
 const (
 	ToolTypeFunction ToolType = "function" // A function tool that can be called by the model to generate a response.
 )
+
+// IsValid reports whether the tool type is an OpenAI-supported value.
+func (t ToolType) IsValid() bool {
+	switch t {
+	case ToolTypeFunction:
+		return true
+	default:
+		return false
+	}
+}
 
 // Chat represents a chat conversation with a model, including the messages exchanged,
 // any tools used, and a session identifier. The session identifier is transported in
