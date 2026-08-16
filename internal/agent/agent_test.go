@@ -503,13 +503,13 @@ func TestNewAgent_HidesDisabledSkillFromSystemPrompt(t *testing.T) {
 	}
 
 	a, _ := NewAgent(&errModel{err: errors.New("never called")}, config.Config{Model: "m"}, combined)
-	dev := a.Chat.Messages[0].Content
+	sys := a.Chat.Messages[0].Content
 
-	if !strings.Contains(dev, "visible") || !strings.Contains(dev, "model may load") {
-		t.Errorf("visible skill missing from system prompt: %q", dev)
+	if !strings.Contains(sys, "visible") || !strings.Contains(sys, "model may load") {
+		t.Errorf("visible skill missing from system prompt: %q", sys)
 	}
-	if strings.Contains(dev, "hidden") || strings.Contains(dev, "user only") {
-		t.Errorf("disabled skill leaked into system prompt: %q", dev)
+	if strings.Contains(sys, "hidden") || strings.Contains(sys, "user only") {
+		t.Errorf("disabled skill leaked into system prompt: %q", sys)
 	}
 	if !containsName(a.Skills(), "hidden") {
 		t.Errorf("disabled skill missing from Skills() autocomplete catalog: %+v", a.Skills())

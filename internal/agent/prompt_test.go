@@ -11,7 +11,7 @@ import (
 	"thing/internal/skills"
 )
 
-const expectedDeveloperPromptNoSkills = `
+const expectedSystemPromptNoSkills = `
 You are an expert assistant operating inside an agent harness.
 
 Be succint in your responses. Use ASD-STE100 Simplified Technical English.
@@ -19,7 +19,7 @@ Be succint in your responses. Use ASD-STE100 Simplified Technical English.
 Your current working directory is "/home/user/project".
 `
 
-const expectedDeveloperPromptWithSkills = `
+const expectedSystemPromptWithSkills = `
 You are an expert assistant operating inside an agent harness.
 
 Be succint in your responses. Use ASD-STE100 Simplified Technical English.
@@ -59,18 +59,18 @@ disable-model-invocation: true
 Test
 `
 
-func TestBuildDeveloperPrompt_NoSkills(t *testing.T) {
-	prompt, err := buildDeveloperPrompt("/home/user/project", nil)
+func TestBuildSystemPrompt_NoSkills(t *testing.T) {
+	prompt, err := buildSystemPrompt("/home/user/project", nil)
 	if err != nil {
-		t.Fatalf("buildDeveloperPrompt returned unexpected error: %v", err)
+		t.Fatalf("buildSystemPrompt returned unexpected error: %v", err)
 	}
 
-	if prompt != expectedDeveloperPromptNoSkills {
-		t.Errorf("buildDeveloperPrompt returned unexpected prompt:\nGot:\n\"%s\"\nExpected:\n\"%s\"", prompt, expectedDeveloperPromptNoSkills)
+	if prompt != expectedSystemPromptNoSkills {
+		t.Errorf("buildSystemPrompt returned unexpected prompt:\nGot:\n\"%s\"\nExpected:\n\"%s\"", prompt, expectedSystemPromptNoSkills)
 	}
 }
 
-func TestBuildDeveloperPrompt_WithSkills(t *testing.T) {
+func TestBuildSystemPrompt_WithSkills(t *testing.T) {
 	tempDir := t.TempDir()
 
 	testData := [][2]string{
@@ -93,13 +93,13 @@ func TestBuildDeveloperPrompt_WithSkills(t *testing.T) {
 		t.Fatalf("failed to create skills registry: %v", err)
 	}
 
-	prompt, err := buildDeveloperPrompt("/home/user/project", skillsRegistry)
+	prompt, err := buildSystemPrompt("/home/user/project", skillsRegistry)
 	if err != nil {
-		t.Fatalf("buildDeveloperPrompt returned unexpected error: %v", err)
+		t.Fatalf("buildSystemPrompt returned unexpected error: %v", err)
 	}
 
-	expected := strings.ReplaceAll(expectedDeveloperPromptWithSkills, "@@TEMPDIR@@", tempDir)
+	expected := strings.ReplaceAll(expectedSystemPromptWithSkills, "@@TEMPDIR@@", tempDir)
 	if prompt != expected {
-		t.Errorf("buildDeveloperPrompt returned unexpected prompt:\nGot:\n\"%s\"\nExpected:\n\"%s\"", prompt, expected)
+		t.Errorf("buildSystemPrompt returned unexpected prompt:\nGot:\n\"%s\"\nExpected:\n\"%s\"", prompt, expected)
 	}
 }

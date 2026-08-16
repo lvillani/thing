@@ -9,9 +9,9 @@ import (
 	"thing/internal/skills"
 )
 
-// developerPromptTemplate is the template of the initial prompt used to steer model
+// systemPromptTemplate is the template of the initial prompt used to steer model
 // behavior.
-const developerPromptTemplate = `
+const systemPromptTemplate = `
 You are an expert assistant operating inside an agent harness.
 
 Be succint in your responses. Use ASD-STE100 Simplified Technical English.
@@ -36,11 +36,11 @@ the skill's directory (the parent of SKILL.md) and use absolute paths in tool ca
 {{- end}}
 `
 
-// buildDeveloperPrompt builds the initial prompt used to steer model behavior,
+// buildSystemPrompt builds the initial prompt used to steer model behavior,
 // including the current working directory and the skill catalog (if any). It returns
 // the prompt string or an error if template expansion fails.
-func buildDeveloperPrompt(cwd string, skillsRegistry *skills.Registry) (string, error) {
-	t, err := template.New("developerPrompt").Parse(developerPromptTemplate)
+func buildSystemPrompt(cwd string, skillsRegistry *skills.Registry) (string, error) {
+	t, err := template.New("systemPrompt").Parse(systemPromptTemplate)
 	if err != nil {
 		return "", err
 	}

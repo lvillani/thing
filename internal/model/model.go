@@ -37,7 +37,7 @@ func (r ReasoningEffort) IsValid() bool {
 type MessageRole string
 
 const (
-	MessageRoleDeveloper MessageRole = "developer" // Developer-provided instructions that the model should follow.
+	MessageRoleSystem    MessageRole = "system"    // Instructions that the model should follow.
 	MessageRoleUser      MessageRole = "user"      // Messages sent by an end user.
 	MessageRoleAssistant MessageRole = "assistant" // Messages sent by the model in response to user messages.
 	MessageRoleTool      MessageRole = "tool"      // Messages sent by a tool in response to a model's tool call.
@@ -46,7 +46,7 @@ const (
 // IsValid reports whether the message role is an OpenAI-supported value.
 func (r MessageRole) IsValid() bool {
 	switch r {
-	case MessageRoleDeveloper, MessageRoleUser, MessageRoleAssistant, MessageRoleTool:
+	case MessageRoleSystem, MessageRoleUser, MessageRoleAssistant, MessageRoleTool:
 		return true
 	default:
 		return false

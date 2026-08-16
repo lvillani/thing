@@ -67,7 +67,7 @@ func NewAgent(m Model, cfg config.Config, reg ...*skills.Registry) (*Agent, erro
 		return nil, err
 	}
 
-	developerPrompt, err := buildDeveloperPrompt(cwd, skillsRegistry)
+	systemPrompt, err := buildSystemPrompt(cwd, skillsRegistry)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +81,7 @@ func NewAgent(m Model, cfg config.Config, reg ...*skills.Registry) (*Agent, erro
 			Model:           cfg.Model,
 			ReasoningEffort: cfg.ReasoningEffort,
 			SessionID:       model.NewSessionID(),
-			Messages:        []model.Message{{Role: model.MessageRoleDeveloper, Content: developerPrompt}},
+			Messages:        []model.Message{{Role: model.MessageRoleSystem, Content: systemPrompt}},
 			Tools:           toolRegistry.Tools(),
 		},
 	}, nil
