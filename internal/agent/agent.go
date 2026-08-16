@@ -149,7 +149,7 @@ func (a *Agent) run(ctx context.Context, message *model.Message, events chan<- E
 			return
 		}
 
-		if msg.Content != "" && !a.emit(ctx, events, Event{Kind: KindAssistant, Message: msg.Content}) {
+		if strings.TrimSpace(msg.Content) != "" && !a.emit(ctx, events, Event{Kind: KindAssistant, Message: msg.Content}) {
 			return
 		}
 		for _, toolCall := range msg.ToolCalls {
