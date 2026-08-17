@@ -11,6 +11,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/hashicorp/go-retryablehttp"
+
 	"thing/internal/model"
 )
 
@@ -37,14 +39,14 @@ func (o *OpenAI) Complete(ctx context.Context, chat model.Chat) (*model.Response
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(requestCtx, http.MethodPost, o.endpoint, bytes.NewReader(body))
+	req, err := retryablehttp.NewRequestWithContext(requestCtx, http.MethodPost, o.endpoint, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+o.token)
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := defaultClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("send request: %w", err)
 	}
