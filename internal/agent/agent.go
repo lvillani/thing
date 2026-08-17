@@ -81,19 +81,6 @@ func NewAgent(t provider.Provider, cfg config.Config, reg ...*skills.Registry) (
 	}, nil
 }
 
-// promptWithCatalog appends the tier-1 skill catalog and a short activation instruction
-// to the base prompt.
-func promptWithCatalog(base string, cat []skills.Skill) string {
-	var b strings.Builder
-	b.WriteString(base)
-	b.WriteString("\n\nThe following skills provide specialized instructions for specific tasks.\n")
-	b.WriteString("When a task matches a skill's description, use bash to read the SKILL.md at its location before proceeding.\n")
-	for _, s := range cat {
-		fmt.Fprintf(&b, "- %s: %s (%s)\n", s.Name, s.Description, s.Location)
-	}
-	return b.String()
-}
-
 // Run drives the agent loop: it appends a message, then repeatedly calls the model,
 // runs any requested tools, and reports each step as an Event on the returned channel.
 // The channel is closed exactly once when the run finishes. Cancelling ctx stops the
