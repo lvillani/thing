@@ -18,6 +18,7 @@ import (
 
 // OpenAI is a transport for an OpenAI-compatible Chat Completions endpoint.
 type OpenAI struct {
+	client   *retryablehttp.Client
 	token    string
 	endpoint string
 	timeout  time.Duration
@@ -26,7 +27,14 @@ type OpenAI struct {
 // NewOpenAI creates a transport for the given endpoint, bearer token, and request
 // timeout. The timeout applies to each model request.
 func NewOpenAI(token, endpoint string, timeout time.Duration) *OpenAI {
-	return &OpenAI{token: token, endpoint: endpoint, timeout: timeout}
+	c := retryablehttp.NewClient()
+	c.Logger = nil
+
+	return &OpenAI{client: c,
+		token:    token,
+		endpoint: endpoint,
+		timeout:  timeout,
+	}
 }
 
 // Complete sends the conversation to the model and returns the assistant's reply.
@@ -46,7 +54,7 @@ func (o *OpenAI) Complete(ctx context.Context, chat model.Chat) (*model.Response
 	req.Header.Set("Authorization", "Bearer "+o.token)
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := defaultClient.Do(req)
+	resp, err := o.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("send request: %w", err)
 	}
