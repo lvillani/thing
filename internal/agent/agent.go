@@ -15,21 +15,15 @@ import (
 
 	"thing/internal/config"
 	"thing/internal/model"
+	"thing/internal/provider"
 	"thing/internal/skills"
 	"thing/internal/tools"
 )
 
-// Transport is the seam to a model transport: something that can send a conversation
-// and return the model's reply. The core depends on this interface, never on HTTP or a
-// concrete backend.
-type Transport interface {
-	Complete(ctx context.Context, chat model.Chat) (*model.Response, error)
-}
-
 // Agent represents an agent. It holds the conversation state.
 type Agent struct {
 	Tools     *tools.Registry
-	Transport Transport
+	Transport provider.Provider
 	ModelInfo *catwalk.Model
 	Chat      model.Chat
 	skills    *skills.Registry // retained so run can resolve /skill:<name> activation
@@ -54,7 +48,7 @@ type Usage struct {
 // skill registry is supplied and it has skills, its catalog is injected into the
 // opening prompt so the model knows what it can load; with no skills the catalog is
 // omitted.
-func NewAgent(t Transport, cfg config.Config, reg ...*skills.Registry) (*Agent, error) {
+func NewAgent(t provider.Provider, cfg config.Config, reg ...*skills.Registry) (*Agent, error) {
 	toolRegistry := tools.NewRegistry()
 
 	var skillsRegistry *skills.Registry
