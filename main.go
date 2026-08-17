@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"thing/internal/agent"
-	"thing/internal/backend"
 	"thing/internal/config"
 	"thing/internal/keychain"
+	"thing/internal/provider"
 	"thing/internal/skills"
 	"thing/internal/tui"
 )
@@ -54,7 +54,7 @@ func main() {
 	}
 
 	timeout := time.Duration(cfg.ConnectionTimeout) * time.Second
-	a, _ := agent.NewAgent(backend.NewOpenAI(token, cfg.Endpoint, timeout), *cfg, skillsRegistry())
+	a, _ := agent.NewAgent(provider.NewOpenAI(token, cfg.Endpoint, timeout), *cfg, skillsRegistry())
 	t := tui.NewTui(a)
 	if err := t.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)

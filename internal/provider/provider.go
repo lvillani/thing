@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-// Package backend is the transport boundary. It implements the agent core's Model
-// interface for an OpenAI-compatible Chat Completions endpoint. The core never
-// imports net/http or knows an endpoint; networking lives here.
-package backend
+// Package provider provides a transport for an OpenAI-compatible Chat Completions
+// endpoint.
+package provider
 
 import (
 	"bytes"
