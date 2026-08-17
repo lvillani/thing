@@ -28,9 +28,11 @@ type OpenAI struct {
 // timeout. The timeout applies to each model request.
 func NewOpenAI(token, endpoint string, timeout time.Duration) *OpenAI {
 	c := retryablehttp.NewClient()
+	c.CheckRetry = openAICheckRetry
 	c.Logger = nil
 
-	return &OpenAI{client: c,
+	return &OpenAI{
+		client:   c,
 		token:    token,
 		endpoint: endpoint,
 		timeout:  timeout,
@@ -71,4 +73,46 @@ func (o *OpenAI) Complete(ctx context.Context, chat model.Chat) (*model.Response
 	}
 
 	return &result, nil
+}
+
+// openAICheckRetry is a retry policy for OpenAI API requests. OpenRouter's API docs say
+// that a model can generate no content while warming from a cold start or while the
+// system is scaling up, and recommend a simple retry mechanism. A successful response
+// with choices == 0 represents that no-content condition.
+//
+// See also:
+// https://openrouter.ai/docs/api_reference/errors-and-debugging#when-no-content-is-generated
+func openAICheckRetry(ctx context.Context, resp *http.Response, err error) (bool, error) {
+	shouldRetry, policyErr := retryablehttp.DefaultRetryPolicy(ctx, resp, err)
+	if shouldRetry || policyErr != nil {
+		return shouldRetry, policyErr
+	}
+
+	// Only a successful model response can be checked for choices. Error responses
+	// usually do not contain a choices field, but they must keep the retry behavior
+	// from DefaultRetryPolicy.
+	if resp.StatusCode != http.StatusOK {
+		return false, nil
+	}
+
+	body, readErr := io.ReadAll(resp.Body)
+
+	// The payload read (and its error) is the relevant result here. A close error is
+	// not actionable for this retry decision, so it is intentionally ignored.
+	_ = resp.Body.Close()
+
+	// CheckRetry reads the response before Client.Do decides whether to retry. Restore
+	// it so Client.Do can drain it on a retry, or Complete can decode it when this is
+	// the final response.
+	resp.Body = io.NopCloser(bytes.NewReader(body))
+	if readErr != nil {
+		return false, fmt.Errorf("could not read response: %w", readErr)
+	}
+
+	var result model.Response
+	if err := json.NewDecoder(bytes.NewReader(body)).Decode(&result); err != nil {
+		return false, fmt.Errorf("could not decode response: %w", err)
+	}
+
+	return len(result.Choices) == 0, nil
 }
