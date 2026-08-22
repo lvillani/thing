@@ -7,4 +7,4 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 TOP_LEVEL="$(cd "$HERE/../" && pwd)"
 
 mkdir -p "$TOP_LEVEL/.build"
-go -C "$TOP_LEVEL" build -o "$TOP_LEVEL/.build/thing" .
+go -C "$TOP_LEVEL" build -o "$TOP_LEVEL/.build/thing" ./cmd/thing
