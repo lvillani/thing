@@ -4,7 +4,7 @@
 
 **A minimal, self-evolving agent harness built from first principles**
 
-![Go](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white&style=flat-square)
+![Go](https://img.shields.io/badge/Go-1.27-00ADD8?logo=go&logoColor=white&style=flat-square)
 [![License: GPLv3](https://img.shields.io/badge/License-GPLv3-blue.svg?style=flat-square)](COPYING)
 ![CI](https://img.shields.io/badge/CI-passing-brightgreen.svg?style=flat-square)
 
