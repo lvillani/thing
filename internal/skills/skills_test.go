@@ -76,13 +76,13 @@ func TestNew_ProjectOverridesUser(t *testing.T) {
 	}
 }
 
-func TestNew_LenientParsing(t *testing.T) {
+func TestNew_YAMLFrontmatter(t *testing.T) {
 	root := t.TempDir()
 
 	// Name/directory mismatch warns but still loads.
 	writeSkill(t, root, "mismatch-dir", "---\nname: actual-name\ndescription: a skill\n---\nbody\n")
-	// Unquoted colon in the value must not break parsing.
-	writeSkill(t, root, "pdf", "---\nname: pdf\ndescription: use when: the user shares a PDF\n---\nbody\n")
+	// YAML supports quoted values containing colons.
+	writeSkill(t, root, "pdf", "---\nname: pdf\ndescription: \"use when: the user shares a PDF\"\n---\nbody\n")
 	// A horizontal rule (`---`) in the body must not truncate the frontmatter.
 	writeSkill(t, root, "body-hr", "---\nname: body-hr\ndescription: has a rule below\n---\n\n---\n\nmarkdown body\n")
 	// A lone apostrophe must not be mangled; a matching quote pair is stripped.
@@ -115,7 +115,7 @@ func TestNew_LenientParsing(t *testing.T) {
 		t.Error("mismatched name/dir skill was not loaded (should warn and load)")
 	}
 	if s, ok := got["pdf"]; !ok || s.Description != "use when: the user shares a PDF" {
-		t.Errorf("lenient colon description not preserved: %+v", got["pdf"])
+		t.Errorf("quoted colon description not preserved: %+v", got["pdf"])
 	}
 	if s, ok := got["body-hr"]; !ok || !strings.Contains(s.Description, "rule below") {
 		t.Errorf("body horizontal rule truncated the frontmatter: %+v", got["body-hr"])
@@ -173,7 +173,7 @@ func TestModelCatalogExcludesDisabledSkills(t *testing.T) {
 	}
 }
 
-func TestParseDisabledModelInvocationVariants(t *testing.T) {
+func TestParseDisabledModelInvocation(t *testing.T) {
 	cases := []struct {
 		val  string
 		want bool
@@ -182,15 +182,13 @@ func TestParseDisabledModelInvocationVariants(t *testing.T) {
 		{val: "True", want: true},
 		{val: "yes", want: true},
 		{val: "on", want: true},
-		{val: "1", want: true},
 		{val: "false", want: false},
 		{val: "", want: false},
-		{val: "banana", want: false},
 	}
 	for _, c := range cases {
-		_, _, got, _ := parseFrontmatter("---\nname: x\ndescription: d\ndisable-model-invocation: " + c.val + "\n---\n")
-		if got != c.want {
-			t.Errorf("parseFrontmatter(disable-model-invocation: %q) = %v, want %v", c.val, got, c.want)
+		_, _, got, ok := parseFrontmatter("---\nname: x\ndescription: d\ndisable-model-invocation: " + c.val + "\n---\n")
+		if !ok || got != c.want {
+			t.Errorf("parseFrontmatter(disable-model-invocation: %q) = %v, %v; want %v, true", c.val, got, ok, c.want)
 		}
 	}
 }

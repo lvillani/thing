@@ -13,6 +13,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"go.yaml.in/yaml/v4"
 )
 
 // Skill is a discovered skill's catalog metadata and the path to its SKILL.md.
@@ -89,9 +91,6 @@ func (r *Registry) load(md string) error {
 	if dir := filepath.Base(filepath.Dir(md)); dir != name {
 		log.Printf("skills: %s: name %q does not match directory %q", md, name, dir)
 	}
-	if strings.Contains(desc, ":") {
-		log.Printf("skills: %s: description for %q may contain an unquoted colon (subtly malformed YAML); loading anyway", md, name)
-	}
 	r.byName[name] = Skill{
 		Name:                   name,
 		Description:            desc,
@@ -139,15 +138,19 @@ func (r *Registry) catalog(keep func(Skill) bool) []Skill {
 	return out
 }
 
-// parseFrontmatter extracts the name, description and disable-model-invocation fields
-// from a SKILL.md's YAML frontmatter block. It is deliberately lenient: it only needs
-// the scalar keys and tolerates unquoted values containing colons, which strict YAML
-// would reject.
+// frontmatter is the metadata block at the start of a SKILL.md file.
+type frontmatter struct {
+	Name                   string `yaml:"name"`
+	Description            string `yaml:"description"`
+	DisableModelInvocation bool   `yaml:"disable-model-invocation"`
+}
+
+// parseFrontmatter extracts the metadata from a SKILL.md's YAML frontmatter block.
 func parseFrontmatter(content string) (name, desc string, disableMD bool, ok bool) {
-	// Must start with a standalone `---` line.
 	if content != "---" && !strings.HasPrefix(content, "---\n") {
 		return "", "", false, false
 	}
+
 	rest := content[3:]
 	nl := strings.IndexByte(rest, '\n')
 	if nl < 0 {
@@ -159,38 +162,12 @@ func parseFrontmatter(content string) (name, desc string, disableMD bool, ok boo
 	if end < 0 {
 		return "", "", false, false
 	}
-	for _, line := range strings.Split(rest[:end], "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		colon := strings.IndexByte(line, ':')
-		if colon < 0 {
-			continue
-		}
-		key := strings.TrimSpace(line[:colon])
-		val := strings.TrimSpace(line[colon+1:])
-		switch key {
-		case "name":
-			name = stripQuotes(val)
-		case "description":
-			desc = stripQuotes(val)
-		case "disable-model-invocation":
-			disableMD = parseBool(val)
-		}
-	}
-	return name, desc, disableMD, name != ""
-}
 
-// parseBool leniently parses a YAML boolean. It returns false for the default/empty
-// value, so an absent disable-model-invocation key never flips the flag.
-func parseBool(v string) bool {
-	switch strings.ToLower(strings.TrimSpace(v)) {
-	case "true", "yes", "y", "on", "1":
-		return true
-	default:
-		return false
+	var metadata frontmatter
+	if err := yaml.Unmarshal([]byte(rest[:end]), &metadata); err != nil {
+		return "", "", false, false
 	}
+	return metadata.Name, metadata.Description, metadata.DisableModelInvocation, metadata.Name != ""
 }
 
 // closingDelim returns the index of the first line exactly equal to `---`, or -1. It
@@ -207,15 +184,4 @@ func closingDelim(s string) int {
 		}
 		s = s[i+3:]
 	}
-}
-
-// stripQuotes removes a single matching surrounding quote pair, leaving a value with
-// stray or unbalanced quotes (e.g. an apostrophe) untouched.
-func stripQuotes(v string) string {
-	if len(v) >= 2 {
-		if (v[0] == '"' && v[len(v)-1] == '"') || (v[0] == '\'' && v[len(v)-1] == '\'') {
-			return v[1 : len(v)-1]
-		}
-	}
-	return v
 }

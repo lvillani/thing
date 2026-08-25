@@ -420,7 +420,7 @@ func newSkillReg(t *testing.T, dir, content string) *skills.Registry {
 }
 
 func TestActivateSkillNudgesModel(t *testing.T) {
-	content := "---\nname: git\n description: follow repo conventions\n---\nbody\n"
+	content := "---\nname: git\ndescription: follow repo conventions\n---\nbody\n"
 	reg := newSkillReg(t, "git", content)
 	skill, _ := reg.Get("git")
 
