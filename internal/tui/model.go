@@ -247,7 +247,7 @@ func (m *model) renderToolCallEvent(event agent.Event) string {
 		return toolMessageStyle.Render(m.mustRenderToolCallMarkdown(message))
 	}
 
-	return toolMessageStyle.Render(m.mustRenderToolCallMarkdown(args.Path))
+	return toolMessageStyle.Render(m.mustRenderToolCallMarkdown(event.Tool + " " + args.Path))
 }
 
 // mustRenderMarkdown renders a string as markdown using the default style. It panics
