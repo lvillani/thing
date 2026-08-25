@@ -33,7 +33,6 @@ func NewRegistry() *Registry {
 	r.Register(&read{})
 	r.Register(&write{})
 	r.Register(&edit{})
-	r.Register(&glob{})
 
 	return &r
 }
