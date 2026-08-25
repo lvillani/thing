@@ -71,7 +71,7 @@ func (t ToolType) IsValid() bool {
 }
 
 // Chat represents a chat conversation with a model, including the messages exchanged,
-// any tools used, and a session identifier. The session identifier is transported in
+// any tools used, and a session identifier. The session identifier is sent in
 // the request body because providers such as OpenRouter can use it to group requests
 // together to maximize cache hits. Keeping it here means it serializes with the
 // conversation and so is restored naturally when deserializing it.

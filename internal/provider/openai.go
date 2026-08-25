@@ -16,7 +16,7 @@ import (
 	"thing/internal/model"
 )
 
-// OpenAI is a transport for an OpenAI-compatible Chat Completions endpoint.
+// OpenAI is a provider for an OpenAI-compatible Chat Completions endpoint.
 type OpenAI struct {
 	client   *retryablehttp.Client
 	token    string
@@ -24,7 +24,7 @@ type OpenAI struct {
 	timeout  time.Duration
 }
 
-// NewOpenAI creates a transport for the given endpoint, bearer token, and request
+// NewOpenAI creates a provider for the given endpoint, bearer token, and request
 // timeout. The timeout applies to each model request.
 func NewOpenAI(token, endpoint string, timeout time.Duration) *OpenAI {
 	c := retryablehttp.NewClient()

@@ -22,7 +22,7 @@ import (
 // Agent represents an agent. It holds the conversation state.
 type Agent struct {
 	Tools     *tools.Registry
-	Transport provider.Provider
+	Provider  provider.Provider
 	ModelInfo *catwalk.Model
 	Chat      model.Chat
 	skills    *skills.Registry // retained so run can resolve /skill:<name> activation
@@ -43,11 +43,11 @@ type Usage struct {
 	CachedTokensRatio float64
 }
 
-// NewAgent creates a new agent with the given model transport and configuration. If a
+// NewAgent creates a new agent with the given provider and configuration. If a
 // skill registry is supplied and it has skills, its catalog is injected into the
 // opening prompt so the model knows what it can load; with no skills the catalog is
 // omitted.
-func NewAgent(t provider.Provider, cfg config.Config, reg ...*skills.Registry) (*Agent, error) {
+func NewAgent(p provider.Provider, cfg config.Config, reg ...*skills.Registry) (*Agent, error) {
 	toolRegistry := tools.NewRegistry()
 
 	var skillsRegistry *skills.Registry
@@ -67,7 +67,7 @@ func NewAgent(t provider.Provider, cfg config.Config, reg ...*skills.Registry) (
 
 	return &Agent{
 		Tools:     toolRegistry,
-		Transport: t,
+		Provider:  p,
 		ModelInfo: findModel(cfg.Model),
 		skills:    skillsRegistry,
 		Chat: model.Chat{
@@ -83,8 +83,8 @@ func NewAgent(t provider.Provider, cfg config.Config, reg ...*skills.Registry) (
 // Run drives the agent loop. It appends message to the conversation, then repeatedly
 // calls the model, sends each complete conversation message on messages, and runs any
 // requested tools. The messages channel is closed exactly once when the run finishes.
-// Transport and other terminal errors are sent on errors, which is buffered to allow a
-// consumer to drain messages without also selecting on errors. Both channels are
+// Provider errors and other terminal errors are sent on errors, which is buffered to
+// allow a consumer to drain messages without also selecting on errors. Both channels are
 // closed when the run ends.
 //
 // The message channel contains the user message, complete assistant messages returned
@@ -109,7 +109,7 @@ func (a *Agent) run(ctx context.Context, message *model.Message, messages chan<-
 	}
 
 	for {
-		response, err := a.Transport.Complete(ctx, a.Chat)
+		response, err := a.Provider.Complete(ctx, a.Chat)
 		if err != nil {
 			a.emitError(errors, err)
 			return
