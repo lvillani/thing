@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strings"
 	"sync"
 
 	"charm.land/catwalk/pkg/catwalk"
@@ -81,100 +80,97 @@ func NewAgent(t provider.Provider, cfg config.Config, reg ...*skills.Registry) (
 	}, nil
 }
 
-// Run drives the agent loop: it appends a message, then repeatedly calls the model,
-// runs any requested tools, and reports each step as an Event on the returned channel.
-// The channel is closed exactly once when the run finishes. Cancelling ctx stops the
-// loop and terminates the producer goroutine — even if the consumer stops draining the
-// channel; cancellation is observed as soon as the model transport or event delivery
-// returns to the loop.
-func (a *Agent) Run(ctx context.Context, message *model.Message) <-chan Event {
-	events := make(chan Event)
+// Run drives the agent loop. It appends message to the conversation, then repeatedly
+// calls the model, sends each complete conversation message on messages, and runs any
+// requested tools. The messages channel is closed exactly once when the run finishes.
+// Transport and other terminal errors are sent on errors, which is buffered to allow a
+// consumer to drain messages without also selecting on errors. Both channels are
+// closed when the run ends.
+//
+// The message channel contains the user message, complete assistant messages returned
+// by the provider, and tool-result messages. An assistant message with ToolCalls is
+// emitted before those calls are executed. Tool failures are returned to the model as
+// tool-result messages and are not sent on errors.
+func (a *Agent) Run(ctx context.Context, message *model.Message) (<-chan model.Message, <-chan error) {
+	messages := make(chan model.Message)
+	errors := make(chan error, 1)
 	go func() {
-		defer close(events)
-		a.run(ctx, message, events)
+		defer close(messages)
+		defer close(errors)
+		a.run(ctx, message, messages, errors)
 	}()
-	return events
+	return messages, errors
 }
 
-func (a *Agent) run(ctx context.Context, message *model.Message, events chan<- Event) {
+func (a *Agent) run(ctx context.Context, message *model.Message, messages chan<- model.Message, errors chan<- error) {
 	a.Chat.Messages = append(a.Chat.Messages, *message)
-	a.emit(ctx, events, Event{Kind: KindUser, Message: message.Content})
+	if !a.emitMessage(ctx, messages, *message) {
+		return
+	}
 
 	for {
 		response, err := a.Transport.Complete(ctx, a.Chat)
 		if err != nil {
-			a.emit(ctx, events, Event{Kind: KindError, Message: err.Error()})
+			a.emitError(errors, err)
 			return
 		}
 
 		// We don't explicitly set "n" and its default is "1", hence we expect exactly
 		// one choice.
 		if len(response.Choices) != 1 {
-			a.emit(ctx, events, Event{Kind: KindError, Message: fmt.Sprintf("model returned %d choices, expected 1", len(response.Choices))})
+			a.emitError(errors, fmt.Errorf("model returned %d choices, expected 1", len(response.Choices)))
 			return
 		}
 
 		msg := response.Choices[0].Message
 		a.Chat.Messages = append(a.Chat.Messages, msg)
 		a.accumulateUsage(response.Usage)
+		if !a.emitMessage(ctx, messages, msg) {
+			return
+		}
 
 		if len(msg.ToolCalls) == 0 {
-			u := a.Usage()
-			a.emit(ctx, events, Event{
-				Kind:             KindFinal,
-				Message:          msg.Content,
-				PromptTokens:     u.PromptTokens,
-				CompletionTokens: u.CompletionTokens,
-				CachedTokens:     u.CachedTokens,
-			})
 			return
 		}
 
-		if strings.TrimSpace(msg.Content) != "" && !a.emit(ctx, events, Event{Kind: KindAssistant, Message: msg.Content}) {
-			return
-		}
 		for _, toolCall := range msg.ToolCalls {
-			if !a.emit(ctx, events, Event{Kind: KindToolCall, Tool: toolCall.Function.Name, ToolInput: toolCall.Function.Arguments}) {
-				return
-			}
 			result, err := a.Tools.Run(ctx, toolCall.Function.Name, toolCall.Function.Arguments)
 			if err != nil {
 				// A failed tool call must not terminate the run: feed the failure back
 				// to the model as a tool result so it can see the error and react
-				// (retry, apologise, or pick a different approach). The event is a tool
-				// result carrying the error text, not a terminal KindError.
+				// (retry, apologise, or pick a different approach).
 				result = "error: " + err.Error()
-				if !a.emit(ctx, events, Event{Kind: KindToolResult, Tool: toolCall.Function.Name, Message: result}) {
-					return
-				}
-				a.Chat.Messages = append(a.Chat.Messages, model.Message{
-					Role:       model.MessageRoleTool,
-					ToolCallID: toolCall.ID,
-					Content:    result,
-				})
-				continue
 			}
-			if !a.emit(ctx, events, Event{Kind: KindToolResult, Tool: toolCall.Function.Name, Message: result}) {
-				return
-			}
-			a.Chat.Messages = append(a.Chat.Messages, model.Message{
+
+			toolMessage := model.Message{
 				Role:       model.MessageRoleTool,
 				ToolCallID: toolCall.ID,
 				Content:    result,
-			})
+			}
+			a.Chat.Messages = append(a.Chat.Messages, toolMessage)
+			if !a.emitMessage(ctx, messages, toolMessage) {
+				return
+			}
 		}
 	}
 }
 
-// emit delivers an event, returning false when ctx is cancelled so the run can stop
-// even if the consumer has stopped draining the channel.
-func (a *Agent) emit(ctx context.Context, events chan<- Event, ev Event) bool {
+// emitMessage delivers a message, returning false when ctx is cancelled so the run
+// can stop even if the consumer has stopped draining the channel.
+func (a *Agent) emitMessage(ctx context.Context, messages chan<- model.Message, message model.Message) bool {
 	select {
-	case events <- ev:
+	case messages <- message:
 		return true
 	case <-ctx.Done():
 		return false
 	}
+}
+
+// emitError reports a terminal error. The error channel has capacity for the single
+// terminal error a run can produce, so reporting it does not depend on the consumer
+// draining the channel while the producer is finishing.
+func (a *Agent) emitError(errors chan<- error, err error) {
+	errors <- err
 }
 
 // accumulateUsage records the live context usage of the most recent model response.
@@ -207,12 +203,12 @@ func (a *Agent) Usage() Usage {
 }
 
 // ActivateSkill is the core-side activation operation for user-explicit skill
-// invocation. It resolves name against the skill registry and returns a short
-// pointer string nudging the model to read that skill's SKILL.md, then passes the
-// remaining task through. It never decides whether input is a command — parsing the
-// "/skill:" syntax is the interaction surface's job. It returns a non-nil error when
-// no skill by that name is in the registry (in which case no pointer is produced and
-// the caller should not start a run).
+// invocation. It resolves name against the skill registry and returns a short pointer
+// string nudging the model to read that skill's SKILL.md, then passes the remaining task
+// through. It never decides whether input is a command — parsing the "/skill:" syntax is
+// the interaction surface's job. It returns a non-nil error when no skill by that name
+// is in the registry (in which case no pointer is produced and the caller should not
+// start a run).
 func (a *Agent) ActivateSkill(name, task string) (string, error) {
 	if a.skills == nil {
 		return "", fmt.Errorf("no skills available to activate")

@@ -166,13 +166,16 @@ func (m model) handleSend() (model, tea.Cmd) {
 	ctx, cancel := context.WithCancel(context.Background())
 	m.cancel = cancel
 	m.isWorking = true
-	events := m.agent.Run(ctx, thingmodel.NewUserMessage(trimmed))
+	messages, errors := m.agent.Run(ctx, thingmodel.NewUserMessage(trimmed))
 
-	// Process events.
+	// Process messages and terminal errors.
 	p := m.p
 	go func() {
-		for event := range events {
-			m.renderToScrollback(m.renderEvent(event))
+		for message := range messages {
+			m.renderToScrollback(m.renderMessage(message))
+		}
+		for err := range errors {
+			m.renderToScrollback(errorStyle.Render("error: " + err.Error()))
 		}
 		p.Send(runFinishedMsg{})
 	}()
@@ -203,43 +206,38 @@ func (m *model) renderToScrollback(s string) {
 	}
 }
 
-// renderEvent renders an event to a string.
-func (m *model) renderEvent(event agent.Event) string {
-	switch event.Kind {
-	case agent.KindAssistant, agent.KindFinal, agent.KindUser:
-		return m.renderMessageEvent(event)
-	case agent.KindToolCall:
-		return toolStyle.Render(m.renderToolCallEvent(event))
-	case agent.KindError:
-		return errorStyle.Render("error: " + event.Message)
+// renderMessage renders a conversation message to a string. Tool-result messages
+// are intentionally not rendered; the assistant message already shows the requested
+// tool call and the model receives the result in the conversation.
+func (m *model) renderMessage(message thingmodel.Message) string {
+	switch message.Role {
+	case thingmodel.MessageRoleUser:
+		return userMessageStyle.Render(m.mustRenderMarkdown(message.Content))
+	case thingmodel.MessageRoleAssistant:
+		var parts []string
+		if strings.TrimSpace(message.Content) != "" {
+			parts = append(parts, assistantMessageStyle.Render(m.mustRenderMarkdown(message.Content)))
+		}
+		for _, toolCall := range message.ToolCalls {
+			parts = append(parts, toolStyle.Render(m.renderToolCall(toolCall)))
+		}
+		return strings.Join(parts, "\n")
 	default:
 		return ""
 	}
 }
 
-// renderMessageEvent renders a message event to a string.
-func (m *model) renderMessageEvent(event agent.Event) string {
-	switch event.Kind {
-	case agent.KindAssistant, agent.KindFinal:
-		return assistantMessageStyle.Render(m.mustRenderMarkdown(event.Message))
-	case agent.KindUser:
-		return userMessageStyle.Render(m.mustRenderMarkdown(event.Message))
-	default:
-		return ""
-	}
-}
-
-// renderToolCallEvent renders a tool call event to a string.
-func (m *model) renderToolCallEvent(event agent.Event) string {
+// renderToolCall renders a model tool call for the scrollback view.
+func (m *model) renderToolCall(toolCall thingmodel.ToolCall) string {
 	var args struct {
 		Path    string `json:"path"`
 		Command string `json:"command"`
 		Timeout int    `json:"timeout"`
 	}
-	_ = json.Unmarshal([]byte(event.ToolInput), &args)
+	_ = json.Unmarshal([]byte(toolCall.Function.Arguments), &args)
 
-	if event.Tool == "bash" {
-		name := event.Tool
+	if toolCall.Function.Name == "bash" {
+		name := toolCall.Function.Name
 		if args.Timeout > 0 {
 			name = fmt.Sprintf("%s (timeout: %ds)", name, args.Timeout)
 		}
@@ -247,7 +245,7 @@ func (m *model) renderToolCallEvent(event agent.Event) string {
 		return toolMessageStyle.Render(m.mustRenderToolCallMarkdown(message))
 	}
 
-	return toolMessageStyle.Render(m.mustRenderToolCallMarkdown(event.Tool + " " + args.Path))
+	return toolMessageStyle.Render(m.mustRenderToolCallMarkdown(toolCall.Function.Name + " " + args.Path))
 }
 
 // mustRenderMarkdown renders a string as markdown using the default style. It panics

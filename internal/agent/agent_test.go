@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"thing/internal/config"
@@ -61,21 +62,45 @@ func (t *fakeTool) Run(ctx context.Context, input model.ToolCallFunctionArgument
 	return t.out, nil
 }
 
-// collect drains events with a timeout so a leaked producer cannot hang the test.
-func collect(t *testing.T, ch <-chan Event) []Event {
+// collect drains both run channels with a timeout so a leaked producer cannot hang
+// the test.
+type runResult struct {
+	messages []model.Message
+	errors   []error
+}
+
+func collect(t *testing.T, messages <-chan model.Message, errors <-chan error) runResult {
 	t.Helper()
-	var evs []Event
-	for {
+	result := runResult{}
+	for messages != nil || errors != nil {
 		select {
-		case ev, ok := <-ch:
+		case message, ok := <-messages:
 			if !ok {
-				return evs
+				messages = nil
+				continue
 			}
-			evs = append(evs, ev)
+			result.messages = append(result.messages, message)
+		case err, ok := <-errors:
+			if !ok {
+				errors = nil
+				continue
+			}
+			result.errors = append(result.errors, err)
 		case <-time.After(2 * time.Second):
-			t.Fatalf("timed out waiting for events; got %+v", evs)
+			t.Fatalf("timed out waiting for run; got %+v", result)
 		}
 	}
+	return result
+}
+
+func collectRun(t *testing.T, a *Agent, ctx context.Context, message *model.Message) runResult {
+	t.Helper()
+	messages, errors := a.Run(ctx, message)
+	return collect(t, messages, errors)
+}
+
+func sameMessage(a, b model.Message) bool {
+	return reflect.DeepEqual(a, b)
 }
 
 // errTool always fails, used to exercise tool-error propagation in the loop.
@@ -109,21 +134,20 @@ func TestRun_StraightFinal(t *testing.T) {
 	}}}
 
 	a, _ := NewAgent(f, config.Config{Model: "fake-model"})
-	evs := collect(t, a.Run(context.Background(), model.NewUserMessage("hi")))
+	run := collectRun(t, a, context.Background(), model.NewUserMessage("hi"))
 
-	if len(evs) != 2 || evs[0].Kind != KindUser || evs[0].Message != "hi" ||
-		evs[1].Kind != KindFinal || evs[1].Message != "hello there" {
-		t.Fatalf("events = %+v, want user 'hi' then a single final 'hello there'", evs)
+	if len(run.messages) != 2 || run.messages[0].Role != model.MessageRoleUser ||
+		run.messages[0].Content != "hi" || !sameMessage(run.messages[1], reply) {
+		t.Fatalf("messages = %+v, want user 'hi' then the complete reply %+v", run.messages, reply)
 	}
-	if evs[1].PromptTokens != 10 || evs[1].CompletionTokens != 4 || evs[1].CachedTokens != 3 {
-		t.Errorf("final event usage = in %d/out %d/cached %d, want 10/4/3",
-			evs[1].PromptTokens, evs[1].CompletionTokens, evs[1].CachedTokens)
+	if len(run.errors) != 0 {
+		t.Fatalf("errors = %+v, want none", run.errors)
 	}
 
-	// Conversation ends with the assistant reply; usage accumulated in the core.
+	// Conversation ends with the assistant reply; usage is accumulated in the core.
 	last := a.Chat.Messages[len(a.Chat.Messages)-1]
-	if last.Role != model.MessageRoleAssistant || last.Content != "hello there" {
-		t.Errorf("last message = %+v, want assistant 'hello there'", last)
+	if !sameMessage(last, reply) {
+		t.Errorf("last message = %+v, want assistant %+v", last, reply)
 	}
 	if u := a.Usage(); u.PromptTokens != 10 || u.CompletionTokens != 4 || u.CachedTokens != 3 {
 		t.Errorf("usage = in %d/out %d/cached %d, want 10/4/3",
@@ -140,38 +164,40 @@ func TestRun_ToolRoundThenFinal(t *testing.T) {
 			Arguments model.ToolCallFunctionArguments `json:"arguments"`
 		}{Name: "echo", Arguments: `{"text":"x"}`},
 	}}}
+	final := model.Message{Role: model.MessageRoleAssistant, Content: "done"}
 	f := &fakeModel{responses: []*model.Response{
 		finalResponse(toolResp),
-		finalResponse(model.Message{Role: model.MessageRoleAssistant, Content: "done"}),
+		finalResponse(final),
 	}}
 
 	a, _ := NewAgent(f, config.Config{Model: "fake-model"})
 	a.Tools.Register(&fakeTool{out: "echoed"})
 
-	evs := collect(t, a.Run(context.Background(), model.NewUserMessage("please echo")))
+	run := collectRun(t, a, context.Background(), model.NewUserMessage("please echo"))
 
-	want := []EventKind{KindUser, KindToolCall, KindToolResult, KindFinal}
-	if len(evs) != len(want) {
-		t.Fatalf("events = %+v, want %v", evs, want)
+	if len(run.messages) != 4 {
+		t.Fatalf("messages = %+v, want user, assistant tool call, tool result, final", run.messages)
 	}
-	for i, k := range want {
-		if evs[i].Kind != k {
-			t.Errorf("event[%d] = %s, want %s (%+v)", i, evs[i].Kind, k, evs[i])
-		}
+	if run.messages[0].Role != model.MessageRoleUser || run.messages[0].Content != "please echo" {
+		t.Errorf("user message = %+v", run.messages[0])
 	}
-	if evs[1].Tool != "echo" || evs[2].Tool != "echo" {
-		t.Errorf("tool events = %+v, %+v, both want tool 'echo'", evs[1], evs[2])
+	if !sameMessage(run.messages[1], toolResp) {
+		t.Errorf("assistant message = %+v, want complete model message %+v", run.messages[1], toolResp)
 	}
-	if evs[2].Message != "echoed" {
-		t.Errorf("tool result = %q, want 'echoed'", evs[2].Message)
+	if run.messages[2].Role != model.MessageRoleTool || run.messages[2].ToolCallID != "call_1" ||
+		run.messages[2].Content != "echoed" {
+		t.Errorf("tool result = %+v, want tool result for call_1", run.messages[2])
 	}
-	if evs[3].Message != "done" {
-		t.Errorf("final = %q, want 'done'", evs[3].Message)
+	if !sameMessage(run.messages[3], final) {
+		t.Errorf("final message = %+v, want %+v", run.messages[3], final)
+	}
+	if len(run.errors) != 0 {
+		t.Fatalf("errors = %+v, want none", run.errors)
 	}
 
 	// The tool result was fed back into the conversation as a tool message.
 	last := a.Chat.Messages[len(a.Chat.Messages)-1]
-	if last.Role != model.MessageRoleAssistant || last.Content != "done" {
+	if !sameMessage(last, final) {
 		t.Errorf("last message = %+v, want the final assistant message", last)
 	}
 	foundToolResult := false
@@ -187,30 +213,32 @@ func TestRun_ToolRoundThenFinal(t *testing.T) {
 
 func TestRun_ModelError(t *testing.T) {
 	a, _ := NewAgent(&errModel{err: errors.New("boom")}, config.Config{Model: "fake-model"})
-	evs := collect(t, a.Run(context.Background(), model.NewUserMessage("hi")))
+	run := collectRun(t, a, context.Background(), model.NewUserMessage("hi"))
 
-	if len(evs) != 2 || evs[0].Kind != KindUser || evs[0].Message != "hi" ||
-		evs[1].Kind != KindError || evs[1].Message != "boom" {
-		t.Fatalf("events = %+v, want user 'hi' then a single error 'boom'", evs)
+	if len(run.messages) != 1 || run.messages[0].Role != model.MessageRoleUser || run.messages[0].Content != "hi" {
+		t.Fatalf("messages = %+v, want user 'hi'", run.messages)
+	}
+	if len(run.errors) != 1 || run.errors[0].Error() != "boom" {
+		t.Fatalf("errors = %+v, want a single error 'boom'", run.errors)
 	}
 }
 
 func TestRun_CancellationStopsLoop(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	a, _ := NewAgent(blockingModel{}, config.Config{Model: "fake-model"})
-	ch := a.Run(ctx, model.NewUserMessage("hi"))
+	messages, errors := a.Run(ctx, model.NewUserMessage("hi"))
 
 	// Cancel while the producer is (or soon will be) blocked inside Complete.
 	cancel()
 
-	// The run must terminate and the channel close; if the producer leaks, this
-	// times out. The channel closing proves the producer goroutine exited.
-	collect(t, ch)
+	// The run must terminate and both channels must close; if the producer leaks, this
+	// times out.
+	collect(t, messages, errors)
 }
 
-func TestRun_AssistantPrecedesToolCall(t *testing.T) {
-	// The model emits text before deciding to call a tool: an assistant event must
-	// surface before the tool activity.
+func TestRun_CompleteAssistantMessagePrecedesToolResult(t *testing.T) {
+	// The complete assistant message, including its content and tool calls, must be
+	// emitted before the tool result.
 	thinking := model.Message{Role: model.MessageRoleAssistant, Content: "let me check that", ToolCalls: []model.ToolCall{{
 		ID:   "call_1",
 		Type: "function",
@@ -219,43 +247,34 @@ func TestRun_AssistantPrecedesToolCall(t *testing.T) {
 			Arguments model.ToolCallFunctionArguments `json:"arguments"`
 		}{Name: "echo", Arguments: `{}`},
 	}}}
+	final := model.Message{Role: model.MessageRoleAssistant, Content: "done"}
 	f := &fakeModel{responses: []*model.Response{
 		finalResponse(thinking),
-		finalResponse(model.Message{Role: model.MessageRoleAssistant, Content: "done"}),
+		finalResponse(final),
 	}}
 
 	a, _ := NewAgent(f, config.Config{Model: "fake-model"})
 	a.Tools.Register(&fakeTool{out: "echoed"})
-	evs := collect(t, a.Run(context.Background(), model.NewUserMessage("please check")))
+	run := collectRun(t, a, context.Background(), model.NewUserMessage("please check"))
 
-	want := []struct {
-		kind EventKind
-		msg  string
-	}{
-		{KindUser, "please check"},
-		{KindAssistant, "let me check that"},
-		{KindToolCall, ""},
-		{KindToolResult, "echoed"},
-		{KindFinal, "done"},
+	if len(run.messages) != 4 {
+		t.Fatalf("messages = %+v, want user, assistant, tool result, final", run.messages)
 	}
-	if len(evs) != len(want) {
-		t.Fatalf("events = %+v, want %d events", evs, len(want))
+	if !sameMessage(run.messages[1], thinking) {
+		t.Errorf("assistant message = %+v, want %+v", run.messages[1], thinking)
 	}
-	for i, w := range want {
-		if evs[i].Kind != w.kind {
-			t.Errorf("event[%d].Kind = %s, want %s", i, evs[i].Kind, w.kind)
-		}
-		if w.msg != "" && evs[i].Message != w.msg {
-			t.Errorf("event[%d].Message = %q, want %q", i, evs[i].Message, w.msg)
-		}
+	if run.messages[2].Role != model.MessageRoleTool || run.messages[2].Content != "echoed" {
+		t.Errorf("tool result = %+v, want echoed tool result", run.messages[2])
+	}
+	if !sameMessage(run.messages[3], final) {
+		t.Errorf("final message = %+v, want %+v", run.messages[3], final)
 	}
 }
 
 func TestRun_ToolErrorFeedsBackToModel(t *testing.T) {
-	// A tool call that errors must NOT terminate the run. The failure is fed back to
-	// the model as a tool result (so the model can see and react to it), and the loop
-	// continues to a final answer.
-	toolResp := model.Message{Role: model.MessageRoleAssistant, Content: "", ToolCalls: []model.ToolCall{{
+	// A tool call that errors must not terminate the run. The failure is fed back to
+	// the model as a tool-result message, so the model can see and react to it.
+	toolResp := model.Message{Role: model.MessageRoleAssistant, ToolCalls: []model.ToolCall{{
 		ID:   "call_1",
 		Type: "function",
 		Function: struct {
@@ -263,33 +282,33 @@ func TestRun_ToolErrorFeedsBackToModel(t *testing.T) {
 			Arguments model.ToolCallFunctionArguments `json:"arguments"`
 		}{Name: "boom", Arguments: `{}`},
 	}}}
+	final := model.Message{Role: model.MessageRoleAssistant, Content: "ok, noted the failure"}
 	f := &fakeModel{responses: []*model.Response{
 		finalResponse(toolResp),
-		finalResponse(model.Message{Role: model.MessageRoleAssistant, Content: "ok, noted the failure"}),
+		finalResponse(final),
 	}}
 
 	a, _ := NewAgent(f, config.Config{Model: "fake-model"})
 	a.Tools.Register(&errTool{})
 
-	evs := collect(t, a.Run(context.Background(), model.NewUserMessage("trigger a failure")))
+	run := collectRun(t, a, context.Background(), model.NewUserMessage("trigger a failure"))
 
-	want := []EventKind{KindUser, KindToolCall, KindToolResult, KindFinal}
-	if len(evs) != len(want) {
-		t.Fatalf("events = %+v, want %v (tool error must not terminate the run)", evs, want)
+	if len(run.messages) != 4 {
+		t.Fatalf("messages = %+v, want user, assistant, failed tool result, final", run.messages)
 	}
-	for i, k := range want {
-		if evs[i].Kind != k {
-			t.Errorf("event[%d].Kind = %s, want %s", i, evs[i].Kind, k)
-		}
+	if !sameMessage(run.messages[1], toolResp) {
+		t.Errorf("assistant message = %+v, want %+v", run.messages[1], toolResp)
 	}
-	if !strings.Contains(evs[2].Message, "kaboom") {
-		t.Errorf("tool result = %q, want it to carry the tool error 'kaboom'", evs[2].Message)
+	if run.messages[2].Role != model.MessageRoleTool || !strings.Contains(run.messages[2].Content, "kaboom") {
+		t.Errorf("tool result = %+v, want it to carry tool error 'kaboom'", run.messages[2])
 	}
-	if evs[3].Message != "ok, noted the failure" {
-		t.Errorf("final = %q, want the model's reaction to the failure", evs[3].Message)
+	if !sameMessage(run.messages[3], final) {
+		t.Errorf("final = %+v, want %+v", run.messages[3], final)
+	}
+	if len(run.errors) != 0 {
+		t.Fatalf("errors = %+v, want none for a recoverable tool error", run.errors)
 	}
 
-	// The failure was fed back to the model as a tool message.
 	found := false
 	for _, m := range a.Chat.Messages {
 		if m.Role == model.MessageRoleTool && m.ToolCallID == "call_1" && strings.Contains(m.Content, "kaboom") {
@@ -335,7 +354,7 @@ func (g *growingContextModel) Complete(_ context.Context, chat model.Chat) (*mod
 
 func TestRun_UsageTracksLiveContextNotAccumulatedThroughput(t *testing.T) {
 	// Three requests with growing context sizes: 1000, 2000, 3000. The live-context
-	// gauge must report 3000/4 cached 1500 — the last response — NOT the sum 6000.
+	// gauge must report 3000/4 cached 1500 — not the sum 6000.
 	toolMsg := model.Message{Role: model.MessageRoleAssistant,
 		ToolCalls: []model.ToolCall{{ID: "call_1", Type: "function", Function: struct {
 			Name      string                          `json:"name"`
@@ -348,7 +367,7 @@ func TestRun_UsageTracksLiveContextNotAccumulatedThroughput(t *testing.T) {
 	a, _ := NewAgent(g, config.Config{Model: "fake-model"})
 	a.Tools.Register(&fakeTool{out: "echoed"})
 
-	evs := collect(t, a.Run(context.Background(), model.NewUserMessage("grow")))
+	collectRun(t, a, context.Background(), model.NewUserMessage("grow"))
 
 	if u := a.Usage(); u.PromptTokens != 3000 {
 		t.Errorf("PromptTokens = %d, want 3000 (live context of last request, not cumulative)", u.PromptTokens)
@@ -361,11 +380,6 @@ func TestRun_UsageTracksLiveContextNotAccumulatedThroughput(t *testing.T) {
 	}
 	if u := a.Usage(); u.CachedTokensRatio != 0.5 {
 		t.Errorf("CachedTokensRatio = %v, want 0.5 (per-request cache hit rate)", u.CachedTokensRatio)
-	}
-	final := evs[len(evs)-1]
-	if final.PromptTokens != 3000 || final.CompletionTokens != 4 || final.CachedTokens != 1500 {
-		t.Errorf("final event usage = in %d/out %d/cached %d, want 3000/4/1500",
-			final.PromptTokens, final.CompletionTokens, final.CachedTokens)
 	}
 }
 
@@ -468,7 +482,7 @@ func TestRun_NormalInputPassesThroughUnchanged(t *testing.T) {
 	a, _ := NewAgent(m, config.Config{Model: "fake-model"}, newSkillReg(t, "git", "---\nname: git\ndescription: x\n---\n"))
 	// A "/skill:" command is passed through to Run unchanged: parsing is the TUI's
 	// job, the core's Run should never see it as a resolved pointer.
-	collect(t, a.Run(context.Background(), model.NewUserMessage("/skill:git make a commit")))
+	collectRun(t, a, context.Background(), model.NewUserMessage("/skill:git make a commit"))
 	if m.gotUser != "/skill:git make a commit" {
 		t.Errorf("Run should pass command through unchanged, got %q", m.gotUser)
 	}
