@@ -232,12 +232,9 @@ func (m *model) renderMessageEvent(event agent.Event) string {
 // renderToolCallEvent renders a tool call event to a string.
 func (m *model) renderToolCallEvent(event agent.Event) string {
 	var args struct {
-		Path       string `json:"path"`
-		Command    string `json:"command"`
-		Timeout    int    `json:"timeout"`
-		OldText    string `json:"oldText"`
-		NewText    string `json:"newText"`
-		ReplaceAll bool   `json:"replaceAll"`
+		Path    string `json:"path"`
+		Command string `json:"command"`
+		Timeout int    `json:"timeout"`
 	}
 	_ = json.Unmarshal([]byte(event.ToolInput), &args)
 
@@ -250,31 +247,7 @@ func (m *model) renderToolCallEvent(event agent.Event) string {
 		return toolMessageStyle.Render(m.mustRenderToolCallMarkdown(message))
 	}
 
-	if event.Tool == "edit" {
-		message := fmt.Sprintf("edit %s\n```diff\n%s\n```", args.Path, renderEditDiff(args.OldText, args.NewText))
-		if args.ReplaceAll {
-			message = fmt.Sprintf("edit %s (all occurrences)\n```diff\n%s\n```", args.Path, renderEditDiff(args.OldText, args.NewText))
-		}
-		return toolMessageStyle.Render(m.mustRenderToolCallMarkdown(message))
-	}
-
-	input := args.Path
-	if input == "" {
-		input = string(event.ToolInput)
-	}
-	return toolMessageStyle.Render(m.mustRenderToolCallMarkdown(fmt.Sprintf("%s %s", event.Tool, input)))
-}
-
-// renderEditDiff renders the text replacement as a compact diff.
-func renderEditDiff(oldText, newText string) string {
-	var b strings.Builder
-	for _, line := range strings.Split(oldText, "\n") {
-		fmt.Fprintf(&b, "-%s\n", line)
-	}
-	for _, line := range strings.Split(newText, "\n") {
-		fmt.Fprintf(&b, "+%s\n", line)
-	}
-	return strings.TrimSuffix(b.String(), "\n")
+	return toolMessageStyle.Render(m.mustRenderToolCallMarkdown(args.Path))
 }
 
 // mustRenderMarkdown renders a string as markdown using the default style. It panics
