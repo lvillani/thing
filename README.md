@@ -55,9 +55,3 @@ On first run, `thing` asks for an API token and stores it in the system keychain
 Tool calls are not confirmed one by one, and sandboxing is not implemented yet. The
 `bash` tool runs with the permissions of the process, so use `thing` only in a project
 environment where you trust the model and can tolerate its changes.
-
-## 📚 The paper trail
-
-The `docs/adr/` directory captures the reasoning behind the project. It records the
-important decisions, the alternatives considered, and the trade-offs that shaped the
-harness.
