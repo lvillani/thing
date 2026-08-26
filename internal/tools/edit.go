@@ -57,21 +57,21 @@ func (e *edit) Run(ctx context.Context, input model.ToolCallFunctionArguments) (
 		ReplaceAll bool   `json:"replaceAll"`
 	}
 	if err := json.Unmarshal([]byte(input), &args); err != nil {
-		return "", fmt.Errorf("bad arguments: %v", err)
+		return "", fmt.Errorf("%w: %w", errToolBadArguments, err)
 	}
 
 	content, err := os.ReadFile(args.Path)
 	if err != nil {
-		return "", fmt.Errorf("cannot read file: %v", err)
+		return "", fmt.Errorf("%w: %w", errEditCannotReadFile, err)
 	}
 
 	text := string(content)
 	count := strings.Count(text, args.OldText)
 	if count == 0 {
-		return "", fmt.Errorf("text not found in %s", args.Path)
+		return "", fmt.Errorf("%w in %s", errEditTextNotFound, args.Path)
 	}
 	if count > 1 && !args.ReplaceAll {
-		return "", fmt.Errorf("text found %d times in %s; expected one occurrence", count, args.Path)
+		return "", fmt.Errorf("%w: text found %d times in %s; expected one occurrence", errEditTextFoundMultipleTimes, count, args.Path)
 	}
 
 	replacements := 1
@@ -80,7 +80,7 @@ func (e *edit) Run(ctx context.Context, input model.ToolCallFunctionArguments) (
 	}
 	updated := strings.Replace(text, args.OldText, args.NewText, replacements)
 	if err := os.WriteFile(args.Path, []byte(updated), 0644); err != nil {
-		return "", fmt.Errorf("cannot write file: %v", err)
+		return "", fmt.Errorf("%w: %w", errEditCannotWriteFile, err)
 	}
 
 	return fmt.Sprintf("edited: %s", args.Path), nil

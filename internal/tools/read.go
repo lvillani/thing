@@ -41,12 +41,12 @@ func (r *read) Run(ctx context.Context, input model.ToolCallFunctionArguments) (
 		Path string `json:"path"`
 	}
 	if err := json.Unmarshal([]byte(input), &args); err != nil {
-		return "", fmt.Errorf("bad arguments: %v", err)
+		return "", fmt.Errorf("%w: %w", errToolBadArguments, err)
 	}
 
 	content, err := os.ReadFile(args.Path)
 	if err != nil {
-		return "", fmt.Errorf("cannot read file: %v", err)
+		return "", fmt.Errorf("%w: %w", errReadCannotReadFile, err)
 	}
 
 	return string(content), nil

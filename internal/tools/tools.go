@@ -58,7 +58,7 @@ func (r *Registry) Tools() []model.Tool {
 func (r *Registry) Run(ctx context.Context, name string, input model.ToolCallFunctionArguments) (string, error) {
 	f, ok := r.runFunctions[name]
 	if !ok {
-		return "", fmt.Errorf("tool %q not found", name)
+		return "", fmt.Errorf("%w: %q", errToolNotFound, name)
 	}
 
 	return f(ctx, input)

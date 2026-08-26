@@ -47,16 +47,16 @@ func (w *write) Run(ctx context.Context, input model.ToolCallFunctionArguments) 
 		Content string `json:"content"`
 	}
 	if err := json.Unmarshal([]byte(input), &args); err != nil {
-		return "", fmt.Errorf("bad arguments: %v", err)
+		return "", fmt.Errorf("%w: %w", errToolBadArguments, err)
 	}
 
 	if err := os.MkdirAll(filepath.Dir(args.Path), 0755); err != nil {
-		return "", fmt.Errorf("cannot create parent directories: %v", err)
+		return "", fmt.Errorf("%w: %w", errWriteCannotCreateParentDirectories, err)
 	}
 
 	err := os.WriteFile(args.Path, []byte(args.Content), 0644)
 	if err != nil {
-		return "", fmt.Errorf("cannot write to file: %v", err)
+		return "", fmt.Errorf("%w: %w", errWriteCannotWriteFile, err)
 	}
 
 	return fmt.Sprintf("wrote: %s", args.Path), nil

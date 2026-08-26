@@ -49,7 +49,7 @@ func (b *bash) Run(ctx context.Context, input model.ToolCallFunctionArguments) (
 		Timeout int64  `json:"timeout"`
 	}
 	if err := json.Unmarshal([]byte(input), &args); err != nil {
-		return "", fmt.Errorf("bad arguments: %v", err)
+		return "", fmt.Errorf("%w: %w", errToolBadArguments, err)
 	}
 
 	cmdCtx := ctx
@@ -69,9 +69,9 @@ func (b *bash) Run(ctx context.Context, input model.ToolCallFunctionArguments) (
 		// Feed the command's own output (stdout+stderr) back with the error so the
 		// model can see what actually went wrong (e.g. rc != 0 producing stderr).
 		if strings.TrimSpace(result) == "" {
-			return "", err
+			return "", fmt.Errorf("%w: %w", errBashCommandFailed, err)
 		}
-		return "", fmt.Errorf("%s (rc=%v)\n%s", err, cmd.ProcessState.ExitCode(), result)
+		return "", fmt.Errorf("%w: %w (rc=%v)\n%s", errBashCommandFailed, err, cmd.ProcessState.ExitCode(), result)
 	}
 
 	return result, err

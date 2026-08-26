@@ -4,6 +4,7 @@ package tools
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -24,6 +25,9 @@ func TestBash_NonZeroRcReturnsOutputWithErr(t *testing.T) {
 	out, err := (&bash{}).Run(context.TODO(), `{"command":"echo boom >&2; exit 1"}`)
 	if err == nil {
 		t.Fatal("expected an error for rc=1, got nil")
+	}
+	if !errors.Is(err, errBashCommandFailed) {
+		t.Errorf("error = %q, want errBashCommandFailed", err)
 	}
 	if !strings.Contains(err.Error(), "boom") {
 		t.Errorf("error %q does not carry the command's stderr output", err.Error())

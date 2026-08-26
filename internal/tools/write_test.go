@@ -5,9 +5,9 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"thing/internal/model"
@@ -69,7 +69,7 @@ func TestWrite_InvalidArgumentsReturnsError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected an error for invalid arguments")
 	}
-	if !strings.Contains(err.Error(), "bad arguments") {
-		t.Errorf("error = %q, want bad arguments error", err)
+	if !errors.Is(err, errToolBadArguments) {
+		t.Errorf("error = %q, want errToolBadArguments", err)
 	}
 }

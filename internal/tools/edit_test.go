@@ -4,9 +4,9 @@ package tools
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"thing/internal/model"
@@ -62,8 +62,8 @@ func TestEdit_RejectsMissingText(t *testing.T) {
 	}
 
 	_, err := (&edit{}).Run(context.Background(), model.ToolCallFunctionArguments(`{"path":"`+path+`","oldText":"missing","newText":"new"}`))
-	if err == nil || !strings.Contains(err.Error(), "not found") {
-		t.Fatalf("error = %v, want not found error", err)
+	if !errors.Is(err, errEditTextNotFound) {
+		t.Fatalf("error = %v, want errEditTextNotFound", err)
 	}
 }
 
@@ -74,7 +74,7 @@ func TestEdit_RejectsAmbiguousTextByDefault(t *testing.T) {
 	}
 
 	_, err := (&edit{}).Run(context.Background(), model.ToolCallFunctionArguments(`{"path":"`+path+`","oldText":"same","newText":"new"}`))
-	if err == nil || !strings.Contains(err.Error(), "2 times") {
-		t.Fatalf("error = %v, want ambiguity error", err)
+	if !errors.Is(err, errEditTextFoundMultipleTimes) {
+		t.Fatalf("error = %v, want errEditTextFoundMultipleTimes", err)
 	}
 }
